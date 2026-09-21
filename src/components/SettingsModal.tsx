@@ -143,11 +143,9 @@ export function SettingsModal({
           {/* About */}
           <div className="pt-2 text-xs text-neutral-500 space-y-1">
             <div className="flex items-center gap-1.5 font-medium text-neutral-700 dark:text-neutral-300">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>Akshra Ai 2026</span>
+              <span>Akshra Ai</span>
             </div>
-            <p>OpenRouter API • Next.js 16 • Tailwind CSS v4 • MongoDB</p>
-            <p>Full Auth & Genuine Email OTP verification enabled.</p>
+            <p>Developed by <a href="https://www.rohanjaiswal.co.in " target="_blank" className="text-blue-500 dark:text-blue-400 hover:underline">www.rohanjaiswal.co.in</a></p>
           </div>
         </div>
 
