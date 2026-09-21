@@ -186,13 +186,13 @@ export function ChatMessages({
               key={msg.id}
               className="flex items-start gap-3 sm:gap-3.5 justify-start animate-in fade-in duration-200"
             >
-              {/* Logo icon - matched to line up with the first line of text */}
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0 mt-0.5 shadow-xs select-none">
-                <AkshraLogo className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              {/* Logo icon - exactly 28px (h-7 w-7) centered with first line */}
+              <div className="w-7 h-7 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0 shadow-xs select-none">
+                <AkshraLogo className="w-3.5 h-3.5" />
               </div>
 
-              {/* Message Content: Cleanly aligned with no offset padding */}
-              <div className="flex-1 min-w-0 pt-0.5 text-sm sm:text-[15px] leading-relaxed text-neutral-800 dark:text-neutral-200">
+              {/* Message Content: exactly 28px (leading-7) line height for a perfectly straight line */}
+              <div className="flex-1 min-w-0 text-sm sm:text-[15px] leading-7 text-neutral-800 dark:text-neutral-200">
                 <MarkdownRenderer
                   content={msg.content}
                   isStreaming={msg.isStreaming}

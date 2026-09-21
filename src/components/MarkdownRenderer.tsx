@@ -9,32 +9,45 @@ interface MarkdownRendererProps {
 }
 
 export function MarkdownRenderer({ content, isStreaming }: MarkdownRendererProps) {
+  // If content is empty while streaming, show single thin cursor perfectly centered
+  if (!content || !content.trim()) {
+    return (
+      <div className="flex items-center h-7 select-none">
+        {isStreaming && (
+          <span className="inline-block w-[2px] h-[16px] bg-neutral-800 dark:bg-neutral-200 animate-pulse rounded-full" />
+        )}
+      </div>
+    );
+  }
+
   // Parse message into code blocks and markdown text segments
   const segments = parseContent(content);
 
   return (
-    <div className="space-y-3 font-sans text-sm leading-relaxed">
+    <div className="space-y-3 font-sans text-sm sm:text-[15px] leading-7">
       {segments.map((segment, index) => {
+        const isLastSegment = index === segments.length - 1;
+
         if (segment.type === "code") {
           return (
-            <CodeBlock
-              key={index}
-              language={segment.language || "text"}
-              code={segment.content}
-            />
+            <React.Fragment key={index}>
+              <CodeBlock
+                language={segment.language || "text"}
+                code={segment.content}
+              />
+              {isLastSegment && isStreaming && (
+                <span className="inline-block w-[2px] h-[16px] ml-1 bg-neutral-800 dark:bg-neutral-200 animate-pulse align-middle rounded-full" />
+              )}
+            </React.Fragment>
           );
         }
 
         return (
           <div key={index} className="space-y-2">
-            {renderMarkdownParagraphs(segment.content)}
+            {renderMarkdownParagraphs(segment.content, isLastSegment && isStreaming)}
           </div>
         );
       })}
-
-      {isStreaming && (
-        <span className="inline-block w-1.5 h-4 ml-0.5 bg-neutral-900 dark:bg-neutral-100 animate-pulse align-middle" />
-      )}
     </div>
   );
 }
@@ -127,7 +140,7 @@ function parseContent(content: string): ContentSegment[] {
   return segments;
 }
 
-function renderMarkdownParagraphs(text: string) {
+function renderMarkdownParagraphs(text: string, showCursorAtEnd = false) {
   const lines = text.split("\n");
   const paragraphs: React.ReactNode[] = [];
   let currentListItems: string[] = [];
@@ -147,9 +160,19 @@ function renderMarkdownParagraphs(text: string) {
     }
   };
 
+  // Find index of the last non-empty line
+  let lastNonEmptyIndex = -1;
+  for (let idx = lines.length - 1; idx >= 0; idx--) {
+    if (lines[idx].trim()) {
+      lastNonEmptyIndex = idx;
+      break;
+    }
+  }
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
+    const isTargetForCursor = showCursorAtEnd && i === lastNonEmptyIndex;
 
     // Check list item
     if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
@@ -168,24 +191,36 @@ function renderMarkdownParagraphs(text: string) {
       paragraphs.push(
         <h3 key={i} className="text-base font-semibold text-neutral-900 dark:text-neutral-100 pt-2">
           {renderInlineMarkdown(trimmed.slice(4))}
+          {isTargetForCursor && (
+            <span className="inline-block w-[2px] h-[16px] ml-1 bg-neutral-800 dark:bg-neutral-200 animate-pulse align-middle rounded-full" />
+          )}
         </h3>
       );
     } else if (trimmed.startsWith("## ")) {
       paragraphs.push(
         <h2 key={i} className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 pt-3">
           {renderInlineMarkdown(trimmed.slice(3))}
+          {isTargetForCursor && (
+            <span className="inline-block w-[2px] h-[16px] ml-1 bg-neutral-800 dark:bg-neutral-200 animate-pulse align-middle rounded-full" />
+          )}
         </h2>
       );
     } else if (trimmed.startsWith("# ")) {
       paragraphs.push(
         <h1 key={i} className="text-xl font-bold text-neutral-900 dark:text-neutral-100 pt-4">
           {renderInlineMarkdown(trimmed.slice(2))}
+          {isTargetForCursor && (
+            <span className="inline-block w-[2px] h-[16px] ml-1 bg-neutral-800 dark:bg-neutral-200 animate-pulse align-middle rounded-full" />
+          )}
         </h1>
       );
     } else {
       paragraphs.push(
-        <p key={i} className="leading-relaxed text-neutral-800 dark:text-neutral-200">
+        <p key={i} className="leading-7 text-neutral-800 dark:text-neutral-200">
           {renderInlineMarkdown(line)}
+          {isTargetForCursor && (
+            <span className="inline-block w-[2px] h-[16px] ml-1 bg-neutral-800 dark:bg-neutral-200 animate-pulse align-middle rounded-full" />
+          )}
         </p>
       );
     }
