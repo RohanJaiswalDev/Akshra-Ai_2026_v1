@@ -121,10 +121,10 @@ export function AuthModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200 select-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 select-none overflow-y-auto">
       <div className="fixed inset-0" onClick={onClose} aria-hidden="true" />
 
-      <div className="relative w-full max-w-[420px] bg-white dark:bg-[#1e1e1e] border border-neutral-200 dark:border-neutral-800 rounded-3xl p-6 sm:p-8 shadow-2xl z-10 text-neutral-900 dark:text-neutral-100 animate-in zoom-in-95 duration-150">
+      <div className="relative w-full max-w-[420px] max-h-[92vh] overflow-y-auto bg-white dark:bg-[#1e1e1e] border border-neutral-200 dark:border-neutral-800 rounded-3xl p-5 sm:p-8 shadow-2xl z-10 text-neutral-900 dark:text-neutral-100 animate-in zoom-in-95 duration-150">
         {/* Top bar buttons */}
         <div className="flex items-center justify-between mb-4">
           {step === "otp" ? (
@@ -196,12 +196,13 @@ export function AuthModal({
               </label>
               <input
                 type="email"
+                inputMode="email"
                 required
                 autoFocus
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@domain.com"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-[#282828] text-neutral-900 dark:text-white placeholder-neutral-400 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-white transition"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-[#282828] text-neutral-900 dark:text-white placeholder-neutral-400 text-[16px] sm:text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-white transition"
               />
             </div>
 
@@ -251,13 +252,15 @@ export function AuthModal({
               </label>
               <input
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 required
                 autoFocus
                 maxLength={6}
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                 placeholder="••••••"
-                className="w-full px-3 py-3 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-[#282828] text-neutral-900 dark:text-white placeholder-neutral-400 text-center tracking-[8px] font-mono text-xl font-bold focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-white transition"
+                className="w-full px-3 py-3 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-[#282828] text-neutral-900 dark:text-white placeholder-neutral-400 text-center tracking-[6px] sm:tracking-[8px] font-mono text-lg sm:text-xl font-bold focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-white transition"
               />
             </div>
 

@@ -62,14 +62,14 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
   };
 
   return (
-    <div className="my-3 rounded-xl overflow-hidden border border-neutral-800/80 bg-[#18181b] shadow-md text-neutral-200">
+    <div className="my-3 rounded-xl overflow-hidden border border-neutral-800/80 bg-[#18181b] shadow-md text-neutral-200 max-w-full">
       {/* Code Header */}
-      <div className="flex items-center justify-between px-4 py-2 bg-[#202024] border-b border-neutral-800/60 text-xs">
-        <span className="font-mono text-neutral-400 lowercase">{language}</span>
+      <div className="flex items-center justify-between px-3 sm:px-4 py-2 bg-[#202024] border-b border-neutral-800/60 text-xs">
+        <span className="font-mono text-neutral-400 lowercase truncate max-w-[150px] sm:max-w-none">{language}</span>
         <button
           type="button"
           onClick={handleCopy}
-          className="flex items-center gap-1.5 px-2 py-1 rounded-md text-neutral-300 hover:text-white hover:bg-neutral-700/60 transition cursor-pointer active:scale-95"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-neutral-300 hover:text-white hover:bg-neutral-700/60 transition cursor-pointer active:scale-95 shrink-0"
           title="Copy code"
         >
           {copied ? (
@@ -87,8 +87,8 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
       </div>
 
       {/* Code Pre */}
-      <div className="p-4 overflow-x-auto">
-        <pre className="font-mono text-[13px] leading-relaxed whitespace-pre font-normal text-neutral-100">
+      <div className="p-3 sm:p-4 overflow-x-auto max-w-full">
+        <pre className="font-mono text-xs sm:text-[13px] leading-relaxed whitespace-pre font-normal text-neutral-100">
           <code>{code}</code>
         </pre>
       </div>
@@ -239,7 +239,7 @@ function renderInlineMarkdown(text: string): React.ReactNode {
       return (
         <code
           key={index}
-          className="px-1.5 py-0.5 rounded-md bg-neutral-200/70 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 font-mono text-[12.5px] border border-neutral-300/40 dark:border-neutral-700/40"
+          className="px-1.5 py-0.5 rounded-md bg-neutral-200/70 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 font-mono text-[12px] sm:text-[12.5px] border border-neutral-300/40 dark:border-neutral-700/40 break-words"
         >
           {part.slice(1, -1)}
         </code>

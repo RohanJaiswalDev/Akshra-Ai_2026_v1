@@ -13,11 +13,13 @@ import {
 } from "lucide-react";
 import { type AuthUser } from "./AuthModals";
 import { AVAILABLE_MODELS } from "@/lib/models";
+import { SidebarToggleIcon } from "./icons";
 
 interface HeaderProps {
   onOpenLogin: () => void;
   onOpenSignup: () => void;
   isSidebarOpen: boolean;
+  onToggleSidebar?: () => void;
   user: AuthUser | null;
   onLogout: () => void;
   selectedModel: string;
@@ -28,6 +30,7 @@ export function Header({
   onOpenLogin,
   onOpenSignup,
   isSidebarOpen,
+  onToggleSidebar,
   user,
   onLogout,
   selectedModel,
@@ -70,89 +73,105 @@ export function Header({
   };
 
   return (
-    <header className="sticky top-0 z-20 w-full h-14 sm:h-16 flex items-center justify-between px-4 sm:px-8 md:px-10 select-none bg-[var(--canvas-bg)]/80 backdrop-blur-md transition-colors border-b border-neutral-200/50 dark:border-neutral-800/50">
-      {/* Left: Brand name & Model Selector Pill */}
-      <div className="flex items-center gap-2 relative" ref={modelMenuRef}>
-        <button
-          onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
-          className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800/80 transition-colors cursor-pointer group"
-          title="Change AI Model"
-        >
-          <span className="text-[16px] sm:text-[17px] font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
-            Akshra Ai
-          </span>
-          <span className="hidden sm:inline-block text-xs font-medium text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded-lg border border-neutral-200/60 dark:border-neutral-700/60">
-            {activeModelObj.name}
-          </span>
-          <ChevronDown
-            className={`w-4 h-4 text-neutral-400 group-hover:text-neutral-700 dark:group-hover:text-neutral-200 transition-transform duration-200 ${
-              isModelMenuOpen ? "rotate-180" : ""
+    <header className="sticky top-0 z-20 w-full h-14 sm:h-16 flex items-center justify-between px-2.5 sm:px-6 md:px-8 select-none bg-[var(--canvas-bg)]/80 backdrop-blur-md transition-colors border-b border-neutral-200/50 dark:border-neutral-800/50">
+      {/* Left: Sidebar Toggle Button + Brand name & Model Selector Pill */}
+      <div className="flex items-center gap-1 sm:gap-2">
+        {/* Responsive Sidebar Toggle: Visible on mobile, or when sidebar is closed on desktop */}
+        {onToggleSidebar && (
+          <button
+            onClick={onToggleSidebar}
+            className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 transition cursor-pointer shrink-0 ${
+              isSidebarOpen ? "md:hidden" : "flex"
             }`}
-          />
-        </button>
-
-        {/* Model Selection Dropdown */}
-        {isModelMenuOpen && (
-          <div className="absolute top-full left-0 mt-1.5 w-[310px] sm:w-[340px] bg-white dark:bg-[#1e1e1e] border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-2xl z-50 p-2 animate-in fade-in zoom-in-95 duration-150 text-neutral-900 dark:text-neutral-100">
-            <div className="px-3 py-2 border-b border-neutral-100 dark:border-neutral-800/80 mb-1 flex items-center justify-between">
-              <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
-                Select Model
-              </span>
-              <span className="text-[11px] text-neutral-400 flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-amber-500" />
-                OpenRouter Powered
-              </span>
-            </div>
-
-            <div className="max-h-[380px] overflow-y-auto space-y-1 pr-1">
-              {AVAILABLE_MODELS.map((m) => {
-                const isSelected = m.id === selectedModel;
-                return (
-                  <button
-                    key={m.id}
-                    onClick={() => {
-                      onSelectModel(m.id);
-                      setIsModelMenuOpen(false);
-                    }}
-                    className={`w-full text-left px-3 py-2.5 rounded-xl transition cursor-pointer flex items-start justify-between gap-2 group ${
-                      isSelected
-                        ? "bg-neutral-100 dark:bg-neutral-800/90 font-medium"
-                        : "hover:bg-neutral-50 dark:hover:bg-neutral-800/40"
-                    }`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs sm:text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                          {m.name}
-                        </span>
-                        {m.badge && (
-                          <span
-                            className={`text-[10px] font-semibold px-1.5 py-0.2 rounded-md border ${getBadgeStyle(
-                              m.badge
-                            )}`}
-                          >
-                            {m.badge}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 line-clamp-1 mt-0.5">
-                        {m.description}
-                      </p>
-                    </div>
-
-                    {isSelected && (
-                      <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+            title={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
+            aria-label="Toggle sidebar"
+          >
+            <SidebarToggleIcon className="w-5 h-5" />
+          </button>
         )}
+
+        <div className="relative" ref={modelMenuRef}>
+          <button
+            onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
+            className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800/80 transition-colors cursor-pointer group"
+            title="Change AI Model"
+          >
+            <span className="text-[15px] sm:text-[17px] font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
+              Akshra Ai
+            </span>
+            <span className="hidden sm:inline-block text-xs font-medium text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded-lg border border-neutral-200/60 dark:border-neutral-700/60">
+              {activeModelObj.name}
+            </span>
+            <ChevronDown
+              className={`w-3.5 h-3.5 sm:w-4 sm:h-4 text-neutral-400 group-hover:text-neutral-700 dark:group-hover:text-neutral-200 transition-transform duration-200 ${
+                isModelMenuOpen ? "rotate-180" : ""
+              }`}
+            />
+          </button>
+
+          {/* Model Selection Dropdown */}
+          {isModelMenuOpen && (
+            <div className="absolute top-full left-0 mt-1.5 w-[calc(100vw-32px)] max-w-[340px] bg-white dark:bg-[#1e1e1e] border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-2xl z-50 p-2 animate-in fade-in zoom-in-95 duration-150 text-neutral-900 dark:text-neutral-100">
+              <div className="px-3 py-2 border-b border-neutral-100 dark:border-neutral-800/80 mb-1 flex items-center justify-between">
+                <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+                  Select Model
+                </span>
+                <span className="text-[11px] text-neutral-400 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-amber-500" />
+                  OpenRouter Powered
+                </span>
+              </div>
+
+              <div className="max-h-[360px] overflow-y-auto space-y-1 pr-1">
+                {AVAILABLE_MODELS.map((m) => {
+                  const isSelected = m.id === selectedModel;
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => {
+                        onSelectModel(m.id);
+                        setIsModelMenuOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-2.5 rounded-xl transition cursor-pointer flex items-start justify-between gap-2 group ${
+                        isSelected
+                          ? "bg-neutral-100 dark:bg-neutral-800/90 font-medium"
+                          : "hover:bg-neutral-50 dark:hover:bg-neutral-800/40"
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs sm:text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">
+                            {m.name}
+                          </span>
+                          {m.badge && (
+                            <span
+                              className={`text-[10px] font-semibold px-1.5 py-0.2 rounded-md border shrink-0 ${getBadgeStyle(
+                                m.badge
+                              )}`}
+                            >
+                              {m.badge}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-neutral-500 dark:text-neutral-400 line-clamp-1 mt-0.5">
+                          {m.description}
+                        </p>
+                      </div>
+
+                      {isSelected && (
+                        <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Right: Auth action buttons + Theme Switcher */}
-      <div className="flex items-center gap-2 sm:gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-2.5">
         {/* Quick Theme Switcher */}
         <ThemeSelector compact={true} />
 
@@ -161,7 +180,7 @@ export function Header({
           <div className="relative">
             <button
               onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 font-semibold text-xs sm:text-sm flex items-center justify-center shadow-xs cursor-pointer hover:opacity-90 transition active:scale-95 uppercase"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 font-semibold text-xs sm:text-sm flex items-center justify-center shadow-xs cursor-pointer hover:opacity-90 transition active:scale-95 uppercase shrink-0"
               title={user.email}
             >
               {user.email.charAt(0)}
@@ -197,21 +216,21 @@ export function Header({
           </div>
         ) : (
           /* Unauthenticated State: Log in & Sign up for free */
-          <>
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               onClick={onOpenLogin}
-              className="h-8 sm:h-9 px-3.5 sm:px-4 rounded-full bg-black text-white dark:bg-white dark:text-black text-xs sm:text-sm font-medium hover:opacity-90 active:scale-[0.98] transition-all shadow-sm cursor-pointer"
+              className="h-8 sm:h-9 px-2.5 sm:px-3.5 rounded-full bg-black text-white dark:bg-white dark:text-black text-xs sm:text-sm font-medium hover:opacity-90 active:scale-[0.98] transition-all shadow-xs cursor-pointer shrink-0"
             >
               Log in
             </button>
 
             <button
               onClick={onOpenSignup}
-              className="h-8 sm:h-9 px-3.5 sm:px-4 rounded-full bg-white text-black border border-neutral-300 hover:bg-neutral-50 dark:bg-transparent dark:border-neutral-700 dark:text-white dark:hover:bg-neutral-800 text-xs sm:text-sm font-medium active:scale-[0.98] transition-all shadow-sm cursor-pointer"
+              className="h-8 sm:h-9 px-2.5 sm:px-3.5 rounded-full bg-white text-black border border-neutral-300 hover:bg-neutral-50 dark:bg-transparent dark:border-neutral-700 dark:text-white dark:hover:bg-neutral-800 text-xs sm:text-sm font-medium active:scale-[0.98] transition-all shadow-xs cursor-pointer shrink-0"
             >
-              Sign up for free
+              <span>Sign up<span className="hidden sm:inline"> for free</span></span>
             </button>
-          </>
+          </div>
         )}
       </div>
     </header>

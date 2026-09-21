@@ -49,9 +49,11 @@ export default function Home() {
       setIsHistoryEnabled(enabled);
       isHistoryEnabledRef.current = enabled;
 
-      // Load sidebar state (default to open on desktop)
+      // Load sidebar state (default to closed on mobile < 768px, open on desktop >= 768px)
       const savedSidebar = localStorage.getItem("akshra_sidebar_open");
-      if (savedSidebar !== null) {
+      if (typeof window !== "undefined" && window.innerWidth < 768) {
+        setIsSidebarOpen(false);
+      } else if (savedSidebar !== null) {
         setIsSidebarOpen(savedSidebar === "true");
       } else if (typeof window !== "undefined") {
         setIsSidebarOpen(window.innerWidth >= 768);
@@ -176,6 +178,11 @@ export default function Home() {
     setActiveChatId(chat.id);
     setMessages(chat.messages || []);
     setIsStreaming(false);
+
+    // Auto-close sidebar drawer on mobile upon selecting a chat
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setIsSidebarOpen(false);
+    }
   };
 
   // Delete single chat
@@ -230,6 +237,11 @@ export default function Home() {
     setActiveChatId(null);
     setMessages([]);
     setIsStreaming(false);
+
+    // Auto-close sidebar drawer on mobile upon starting a new chat
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setIsSidebarOpen(false);
+    }
   };
 
   // Stop chat generation immediately like in ChatGPT
@@ -442,7 +454,7 @@ export default function Home() {
 
       {/* Main Content Area */}
       <div
-        className={`flex-1 flex flex-col h-full min-h-0 overflow-hidden transition-all duration-300 ${isSidebarOpen ? "md:pl-[260px]" : "pl-14 sm:pl-16"
+        className={`flex-1 flex flex-col h-full min-h-0 overflow-hidden transition-all duration-300 ${isSidebarOpen ? "md:pl-[260px]" : "md:pl-14 sm:md:pl-16"
           }`}
       >
         {/* Top Header with Model Selector */}
@@ -450,6 +462,7 @@ export default function Home() {
           onOpenLogin={() => setAuthModal({ isOpen: true, mode: "login" })}
           onOpenSignup={() => setAuthModal({ isOpen: true, mode: "signup" })}
           isSidebarOpen={isSidebarOpen}
+          onToggleSidebar={handleToggleSidebar}
           user={user}
           onLogout={handleLogout}
           selectedModel={selectedModel}

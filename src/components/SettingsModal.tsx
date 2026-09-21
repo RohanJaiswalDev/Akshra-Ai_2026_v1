@@ -33,23 +33,23 @@ export function SettingsModal({
     AVAILABLE_MODELS.find((m) => m.id === selectedModel) || AVAILABLE_MODELS[0];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 select-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 select-none">
       <div className="fixed inset-0" onClick={onClose} />
 
-      <div className="relative w-full max-w-lg bg-white dark:bg-[#202123] border border-neutral-200 dark:border-neutral-700 rounded-2xl shadow-2xl z-10 overflow-hidden text-neutral-900 dark:text-neutral-100 animate-in zoom-in-95 duration-150">
+      <div className="relative w-full max-w-lg max-h-[88vh] flex flex-col bg-white dark:bg-[#202123] border border-neutral-200 dark:border-neutral-700 rounded-2xl shadow-2xl z-10 overflow-hidden text-neutral-900 dark:text-neutral-100 animate-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 dark:border-neutral-800">
-          <h3 className="text-base font-semibold">Settings</h3>
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-neutral-200 dark:border-neutral-800 shrink-0">
+          <h3 className="text-sm sm:text-base font-semibold">Settings</h3>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
+            className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+        <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto flex-1">
           {/* Theme setting */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 border-b border-neutral-100 dark:border-neutral-800/80">
             <div>
@@ -150,10 +150,10 @@ export function SettingsModal({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end px-6 py-3.5 bg-neutral-50 dark:bg-[#1a1b1e] border-t border-neutral-200 dark:border-neutral-800">
+        <div className="flex justify-end px-4 sm:px-6 py-3 bg-neutral-50 dark:bg-[#1a1b1e] border-t border-neutral-200 dark:border-neutral-800 shrink-0">
           <button
             onClick={onClose}
-            className="px-4 py-1.5 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-medium hover:opacity-90 transition cursor-pointer"
+            className="px-4 py-2 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-medium hover:opacity-90 transition cursor-pointer"
           >
             Done
           </button>

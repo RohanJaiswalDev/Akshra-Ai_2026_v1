@@ -155,7 +155,7 @@ export function ChatMessages({
       {/* Scrollable messages container */}
       <div
         ref={scrollContainerRef}
-        className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-8 md:px-12 py-6 space-y-6 max-w-3xl w-full mx-auto pb-44 scroll-smooth"
+        className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-6 md:px-10 py-4 sm:py-6 space-y-5 sm:space-y-6 max-w-3xl w-full mx-auto pb-44 sm:pb-40 scroll-smooth"
       >
         {/* Top anchor for reliable scroll to top */}
         <div
@@ -173,7 +173,7 @@ export function ChatMessages({
                 key={msg.id}
                 className="flex justify-end animate-in fade-in duration-200"
               >
-                <div className="max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-2.5 sm:py-3 text-sm leading-relaxed bg-neutral-100 dark:bg-[#2f2f2f] text-neutral-900 dark:text-neutral-100 rounded-br-sm shadow-xs">
+                <div className="max-w-[88%] sm:max-w-[80%] md:max-w-[75%] rounded-2xl px-3.5 sm:px-4 py-2.5 sm:py-3 text-[14px] sm:text-sm leading-relaxed bg-neutral-100 dark:bg-[#2f2f2f] text-neutral-900 dark:text-neutral-100 rounded-br-sm shadow-xs">
                   <div className="whitespace-pre-wrap font-sans">{msg.content}</div>
                 </div>
               </div>
@@ -184,15 +184,15 @@ export function ChatMessages({
           return (
             <div
               key={msg.id}
-              className="flex items-start gap-3 sm:gap-3.5 justify-start animate-in fade-in duration-200"
+              className="flex items-start gap-2.5 sm:gap-3.5 justify-start animate-in fade-in duration-200"
             >
-              {/* Logo icon - exactly 28px (h-7 w-7) centered with first line */}
-              <div className="w-7 h-7 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0 shadow-xs select-none">
-                <AkshraLogo className="w-3.5 h-3.5" />
+              {/* Logo icon - exactly matches first line height */}
+              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0 shadow-xs select-none mt-0.5 sm:mt-0">
+                <AkshraLogo className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
               </div>
 
-              {/* Message Content: exactly 28px (leading-7) line height for a perfectly straight line */}
-              <div className="flex-1 min-w-0 text-sm sm:text-[15px] leading-7 text-neutral-800 dark:text-neutral-200">
+              {/* Message Content: seamlessly aligned line height */}
+              <div className="flex-1 min-w-0 text-[14px] sm:text-[15px] leading-6 sm:leading-7 text-neutral-800 dark:text-neutral-200">
                 <MarkdownRenderer
                   content={msg.content}
                   isStreaming={msg.isStreaming}
@@ -200,7 +200,7 @@ export function ChatMessages({
 
                 {/* Assistant Message Actions */}
                 {!msg.isStreaming && msg.content && (
-                  <div className="flex items-center gap-1.5 mt-2.5 pt-1 text-neutral-400 dark:text-neutral-500 select-none">
+                  <div className="flex items-center gap-1 sm:gap-1.5 mt-2 pt-1 text-neutral-400 dark:text-neutral-500 select-none">
                     <button
                       onClick={() => handleCopy(msg.id, msg.content)}
                       className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 transition cursor-pointer"
@@ -243,15 +243,15 @@ export function ChatMessages({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Floating Scroll Navigation: Single clean Back to Top / Scroll to Bottom */}
+      {/* Floating Scroll Navigation: Single clean Back to Top / Scroll to Bottom with Safe Area */}
       {(showBackToTop || showScrollBottom) && (
-        <div className="absolute bottom-[84px] sm:bottom-[92px] left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 pointer-events-auto">
+        <div className="absolute bottom-[calc(5rem+env(safe-area-inset-bottom))] sm:bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 pointer-events-auto">
           {/* Back to top floating pill */}
           {showBackToTop && (
             <button
               type="button"
               onClick={scrollToTop}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white dark:bg-[#252528] border border-neutral-300/90 dark:border-neutral-700 shadow-md hover:shadow-lg text-xs font-medium text-neutral-800 dark:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-[#2e2e32] transition-all duration-150 active:scale-95 cursor-pointer backdrop-blur-md animate-in fade-in zoom-in-95 group"
+              className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-full bg-white dark:bg-[#252528] border border-neutral-300/90 dark:border-neutral-700 shadow-md hover:shadow-lg text-xs font-medium text-neutral-800 dark:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-[#2e2e32] transition-all duration-150 active:scale-95 cursor-pointer backdrop-blur-md animate-in fade-in zoom-in-95 group"
               title="Back to top"
             >
               <ArrowUp className="w-3.5 h-3.5 text-neutral-600 dark:text-neutral-300 group-hover:text-neutral-900 dark:group-hover:text-white transition-transform group-hover:-translate-y-0.5" />
@@ -264,7 +264,7 @@ export function ChatMessages({
             <button
               type="button"
               onClick={() => scrollToBottom(true)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white dark:bg-[#252528] border border-neutral-300/90 dark:border-neutral-700 shadow-md hover:shadow-lg text-xs font-medium text-neutral-800 dark:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-[#2e2e32] transition-all duration-150 active:scale-95 cursor-pointer backdrop-blur-md animate-in fade-in zoom-in-95 group"
+              className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-full bg-white dark:bg-[#252528] border border-neutral-300/90 dark:border-neutral-700 shadow-md hover:shadow-lg text-xs font-medium text-neutral-800 dark:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-[#2e2e32] transition-all duration-150 active:scale-95 cursor-pointer backdrop-blur-md animate-in fade-in zoom-in-95 group"
               title="Scroll to bottom"
             >
               <ArrowDown className="w-3.5 h-3.5 text-neutral-600 dark:text-neutral-300 group-hover:text-neutral-900 dark:group-hover:text-white transition-transform group-hover:translate-y-0.5" />
@@ -274,17 +274,17 @@ export function ChatMessages({
         </div>
       )}
 
-      {/* Floating Bottom Input Bar */}
-      <div className="absolute bottom-0 left-0 right-0 px-4 sm:px-8 md:px-12 py-4 bg-gradient-to-t from-[var(--canvas-bg)] via-[var(--canvas-bg)] to-transparent pt-6 z-20">
+      {/* Floating Bottom Input Bar with Safe Area Support */}
+      <div className="absolute bottom-0 left-0 right-0 px-3 sm:px-6 md:px-10 py-2.5 sm:py-3.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-gradient-to-t from-[var(--canvas-bg)] via-[var(--canvas-bg)] to-transparent pt-4 sm:pt-6 z-20">
         <div className="max-w-3xl w-full mx-auto">
-          <div className="relative flex items-center bg-white dark:bg-[#2f2f2f] rounded-full border border-neutral-200/90 dark:border-[#424242] shadow-[0_4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.35)] px-5 sm:px-6 py-3 sm:py-3.5 focus-within:border-neutral-400 dark:focus-within:border-neutral-500 transition">
+          <div className="relative flex items-center bg-white dark:bg-[#2f2f2f] rounded-full border border-neutral-200/90 dark:border-[#424242] shadow-[0_4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.35)] px-4 sm:px-6 py-2.5 sm:py-3 focus-within:border-neutral-400 dark:focus-within:border-neutral-500 transition">
             <textarea
               rows={1}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Ask Akshra Ai anything..."
-              className="w-full bg-transparent text-sm sm:text-base text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-400 outline-none resize-none max-h-32 pr-3 py-0.5 font-normal"
+              className="w-full bg-transparent text-[16px] sm:text-sm text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-400 outline-none resize-none max-h-32 pr-2 py-0.5 font-normal"
             />
 
             {/* In ChatGPT, the send button switches to a Stop icon while generating */}
@@ -292,7 +292,7 @@ export function ChatMessages({
               <button
                 type="button"
                 onClick={onStop}
-                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 cursor-pointer shadow-sm hover:opacity-85 active:scale-95 transition-all"
+                className="w-8 h-8 sm:w-9 sm:h-9 min-w-[32px] sm:min-w-[36px] rounded-full flex items-center justify-center shrink-0 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 cursor-pointer shadow-sm hover:opacity-85 active:scale-95 transition-all"
                 title="Stop generating"
               >
                 <Square className="w-3.5 h-3.5 fill-current" />
@@ -308,7 +308,7 @@ export function ChatMessages({
                   }
                 }}
                 disabled={!input.trim()}
-                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all ${input.trim()
+                className={`w-8 h-8 sm:w-9 sm:h-9 min-w-[32px] sm:min-w-[36px] rounded-full flex items-center justify-center shrink-0 transition-all ${input.trim()
                   ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 cursor-pointer shadow-sm active:scale-95"
                   : "bg-neutral-200 dark:bg-neutral-700 text-neutral-400 dark:text-neutral-500 cursor-not-allowed"
                   }`}
@@ -319,7 +319,7 @@ export function ChatMessages({
             )}
           </div>
 
-          <div className="text-center mt-2 text-[11px] text-neutral-400 dark:text-neutral-500">
+          <div className="text-center mt-1.5 sm:mt-2 text-[10px] sm:text-[11px] text-neutral-400 dark:text-neutral-500">
             Akshra Ai can make mistakes. Verify important info.
           </div>
         </div>

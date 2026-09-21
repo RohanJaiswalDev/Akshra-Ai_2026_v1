@@ -63,7 +63,7 @@ export function Sidebar({
       {/* Mobile backdrop overlay */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-xs md:hidden"
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs md:hidden"
           onClick={onToggle}
           aria-hidden="true"
         />
@@ -71,9 +71,9 @@ export function Sidebar({
 
       {/* Expanded Sidebar */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 flex flex-col transition-all duration-300 ease-in-out select-none border-r ${isOpen
-          ? "w-[260px] translate-x-0 bg-[#f9f9f9] dark:bg-[#171717] border-neutral-200/80 dark:border-neutral-800"
-          : "-translate-x-full w-[260px] pointer-events-none"
+        className={`fixed top-0 bottom-0 left-0 z-50 md:z-40 flex flex-col transition-all duration-300 ease-in-out select-none border-r ${isOpen
+          ? "w-[280px] max-w-[85vw] sm:w-[260px] translate-x-0 bg-[#f9f9f9] dark:bg-[#171717] border-neutral-200/80 dark:border-neutral-800 shadow-2xl md:shadow-none"
+          : "-translate-x-full w-[280px] sm:w-[260px] pointer-events-none"
           }`}
       >
         {/* Top bar of expanded sidebar: Akshra Logo + Toggle Sidebar button */}
@@ -162,7 +162,7 @@ export function Sidebar({
         )}
 
         {/* Bottom footer: Theme selector + Settings + User Auth at the very end */}
-        <div className="p-3 border-t border-neutral-200/80 dark:border-neutral-800/80 space-y-2.5 bg-[#f9f9f9] dark:bg-[#171717] shrink-0">
+        <div className="p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] border-t border-neutral-200/80 dark:border-neutral-800/80 space-y-2.5 bg-[#f9f9f9] dark:bg-[#171717] shrink-0">
           {/* Theme selector section */}
           <ThemeSelector compact={false} />
 
@@ -251,9 +251,9 @@ export function Sidebar({
         </div>
       </aside>
 
-      {/* Collapsed Rail (Visible when sidebar is closed) */}
+      {/* Collapsed Rail (Visible when sidebar is closed on desktop/tablet) */}
       {!isOpen && (
-        <div className="fixed top-0 bottom-0 left-0 z-30 w-14 sm:w-16 h-screen h-[100dvh] border-r border-neutral-200 dark:border-neutral-800 bg-[var(--sidebar-bg)] flex flex-col justify-between items-center py-3 select-none transition-colors">
+        <div className="fixed top-0 bottom-0 left-0 z-30 hidden md:flex w-14 sm:w-16 h-screen h-[100dvh] border-r border-neutral-200 dark:border-neutral-800 bg-[var(--sidebar-bg)] flex-col justify-between items-center py-3 select-none transition-colors">
           {/* Top: Toggle Sidebar & New Chat buttons */}
           <div className="flex flex-col items-center gap-2">
             <button
