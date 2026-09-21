@@ -76,13 +76,11 @@ export function Header({
     <header className="sticky top-0 z-20 w-full h-14 sm:h-16 flex items-center justify-between px-2.5 sm:px-6 md:px-8 select-none bg-[var(--canvas-bg)]/80 backdrop-blur-md transition-colors border-b border-neutral-200/50 dark:border-neutral-800/50">
       {/* Left: Sidebar Toggle Button + Brand name & Model Selector Pill */}
       <div className="flex items-center gap-1 sm:gap-2">
-        {/* Responsive Sidebar Toggle: Visible on mobile, or when sidebar is closed on desktop */}
+        {/* Responsive Sidebar Toggle: Visible ONLY on mobile (< md), since tablet/desktop (>= md) has the rail/sidebar toggle */}
         {onToggleSidebar && (
           <button
             onClick={onToggleSidebar}
-            className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 transition cursor-pointer shrink-0 ${
-              isSidebarOpen ? "md:hidden" : "flex"
-            }`}
+            className="w-8 h-8 sm:w-9 sm:h-9 flex md:hidden items-center justify-center rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 transition cursor-pointer shrink-0"
             title={isSidebarOpen ? "Close sidebar" : "Open sidebar"}
             aria-label="Toggle sidebar"
           >
@@ -103,9 +101,8 @@ export function Header({
               {activeModelObj.name}
             </span>
             <ChevronDown
-              className={`w-3.5 h-3.5 sm:w-4 sm:h-4 text-neutral-400 group-hover:text-neutral-700 dark:group-hover:text-neutral-200 transition-transform duration-200 ${
-                isModelMenuOpen ? "rotate-180" : ""
-              }`}
+              className={`w-3.5 h-3.5 sm:w-4 sm:h-4 text-neutral-400 group-hover:text-neutral-700 dark:group-hover:text-neutral-200 transition-transform duration-200 ${isModelMenuOpen ? "rotate-180" : ""
+                }`}
             />
           </button>
 
@@ -132,11 +129,10 @@ export function Header({
                         onSelectModel(m.id);
                         setIsModelMenuOpen(false);
                       }}
-                      className={`w-full text-left px-3 py-2.5 rounded-xl transition cursor-pointer flex items-start justify-between gap-2 group ${
-                        isSelected
-                          ? "bg-neutral-100 dark:bg-neutral-800/90 font-medium"
-                          : "hover:bg-neutral-50 dark:hover:bg-neutral-800/40"
-                      }`}
+                      className={`w-full text-left px-3 py-2.5 rounded-xl transition cursor-pointer flex items-start justify-between gap-2 group ${isSelected
+                        ? "bg-neutral-100 dark:bg-neutral-800/90 font-medium"
+                        : "hover:bg-neutral-50 dark:hover:bg-neutral-800/40"
+                        }`}
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
