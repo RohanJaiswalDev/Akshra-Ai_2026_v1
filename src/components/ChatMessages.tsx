@@ -167,37 +167,40 @@ export function ChatMessages({
         {messages.map((msg) => {
           const isUser = msg.role === "user";
 
+          if (isUser) {
+            return (
+              <div
+                key={msg.id}
+                className="flex justify-end animate-in fade-in duration-200"
+              >
+                <div className="max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-2.5 sm:py-3 text-sm leading-relaxed bg-neutral-100 dark:bg-[#2f2f2f] text-neutral-900 dark:text-neutral-100 rounded-br-sm shadow-xs">
+                  <div className="whitespace-pre-wrap font-sans">{msg.content}</div>
+                </div>
+              </div>
+            );
+          }
+
+          // Assistant message: Logo and text starting point match seamlessly in a straight line
           return (
             <div
               key={msg.id}
-              className={`flex gap-3 sm:gap-4 ${isUser ? "justify-end" : "justify-start"
-                } animate-in fade-in duration-200`}
+              className="flex items-start gap-3 sm:gap-3.5 justify-start animate-in fade-in duration-200"
             >
-              {!isUser && (
-                <div className="w-8 h-8 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
-                  <AkshraLogo className="w-4 h-4" />
-                </div>
-              )}
+              {/* Logo icon - matched to line up with the first line of text */}
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center shrink-0 mt-0.5 shadow-xs select-none">
+                <AkshraLogo className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </div>
 
-              <div
-                className={`max-w-[85%] sm:max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${isUser
-                  ? "bg-neutral-100 dark:bg-[#2f2f2f] text-neutral-900 dark:text-neutral-100 rounded-br-sm"
-                  : "bg-transparent text-neutral-800 dark:text-neutral-200"
-                  }`}
-              >
-                {/* Content */}
-                {isUser ? (
-                  <div className="whitespace-pre-wrap font-sans">{msg.content}</div>
-                ) : (
-                  <MarkdownRenderer
-                    content={msg.content}
-                    isStreaming={msg.isStreaming}
-                  />
-                )}
+              {/* Message Content: Cleanly aligned with no offset padding */}
+              <div className="flex-1 min-w-0 pt-0.5 text-sm sm:text-[15px] leading-relaxed text-neutral-800 dark:text-neutral-200">
+                <MarkdownRenderer
+                  content={msg.content}
+                  isStreaming={msg.isStreaming}
+                />
 
                 {/* Assistant Message Actions */}
-                {!isUser && !msg.isStreaming && msg.content && (
-                  <div className="flex items-center gap-2 mt-3 pt-2 text-neutral-400 dark:text-neutral-500">
+                {!msg.isStreaming && msg.content && (
+                  <div className="flex items-center gap-1.5 mt-2.5 pt-1 text-neutral-400 dark:text-neutral-500 select-none">
                     <button
                       onClick={() => handleCopy(msg.id, msg.content)}
                       className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 transition cursor-pointer"
