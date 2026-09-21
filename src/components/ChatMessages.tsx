@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   ArrowUp,
-  ArrowDown,
   Copy,
   Check,
   ThumbsUp,
@@ -121,7 +120,6 @@ export function ChatMessages({
   const [input, setInput] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
-  const [showScrollBottom, setShowScrollBottom] = useState(false);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesStartRef = useRef<HTMLDivElement>(null);
@@ -155,12 +153,8 @@ export function ChatMessages({
 
       const scrollTop = container.scrollTop;
       const shouldShowTop = scrollTop > 100;
-      const distanceFromBottom =
-        container.scrollHeight - scrollTop - container.clientHeight;
-      const shouldShowBottom = distanceFromBottom > 100;
 
       setShowBackToTop((prev) => (prev !== shouldShowTop ? shouldShowTop : prev));
-      setShowScrollBottom((prev) => (prev !== shouldShowBottom ? shouldShowBottom : prev));
     });
   }, []);
 
@@ -237,32 +231,18 @@ export function ChatMessages({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Floating Scroll Navigation: Back to Top / Scroll to Bottom with Safe Area */}
-      {(showBackToTop || showScrollBottom) && (
-        <div className="absolute bottom-[calc(5rem+env(safe-area-inset-bottom))] sm:bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 pointer-events-auto gpu-accelerated">
-          {showBackToTop && (
-            <button
-              type="button"
-              onClick={scrollToTop}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/95 dark:bg-[#252528]/95 border border-neutral-300/90 dark:border-neutral-700 shadow-md hover:shadow-lg text-xs font-medium text-neutral-800 dark:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-[#2e2e32] transition active:scale-95 cursor-pointer backdrop-blur-sm animate-in fade-in zoom-in-95 group"
-              title="Back to top"
-            >
-              <ArrowUp className="w-3.5 h-3.5 text-neutral-600 dark:text-neutral-300 group-hover:text-neutral-900 dark:group-hover:text-white transition-transform group-hover:-translate-y-0.5" />
-              <span>Back to top</span>
-            </button>
-          )}
-
-          {showScrollBottom && (
-            <button
-              type="button"
-              onClick={() => scrollToBottom(true)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/95 dark:bg-[#252528]/95 border border-neutral-300/90 dark:border-neutral-700 shadow-md hover:shadow-lg text-xs font-medium text-neutral-800 dark:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-[#2e2e32] transition active:scale-95 cursor-pointer backdrop-blur-sm animate-in fade-in zoom-in-95 group"
-              title="Scroll to bottom"
-            >
-              <ArrowDown className="w-3.5 h-3.5 text-neutral-600 dark:text-neutral-300 group-hover:text-neutral-900 dark:group-hover:text-white transition-transform group-hover:translate-y-0.5" />
-              <span>Scroll to bottom</span>
-            </button>
-          )}
+      {/* Floating Back to Top Button */}
+      {showBackToTop && (
+        <div className="absolute bottom-[calc(5rem+env(safe-area-inset-bottom))] sm:bottom-[calc(5.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-30 flex items-center pointer-events-auto gpu-accelerated">
+          <button
+            type="button"
+            onClick={scrollToTop}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/95 dark:bg-[#252528]/95 border border-neutral-300/90 dark:border-neutral-700 shadow-md hover:shadow-lg text-xs font-medium text-neutral-800 dark:text-neutral-100 hover:bg-neutral-100 dark:hover:bg-[#2e2e32] transition active:scale-95 cursor-pointer backdrop-blur-sm animate-in fade-in zoom-in-95 group"
+            title="Back to top"
+          >
+            <ArrowUp className="w-3.5 h-3.5 text-neutral-600 dark:text-neutral-300 group-hover:text-neutral-900 dark:group-hover:text-white transition-transform group-hover:-translate-y-0.5" />
+            <span>Back to top</span>
+          </button>
         </div>
       )}
 
