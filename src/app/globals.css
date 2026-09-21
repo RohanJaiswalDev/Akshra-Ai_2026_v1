@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --canvas-bg: #ffffff;
+  --canvas-fg: #0d0d0d;
+  --sidebar-bg: #f9f9f9;
+  --sidebar-fg: #0d0d0d;
+  --sidebar-hover: #ececec;
+  --sidebar-border: #e5e5e5;
+  --input-bg: #ffffff;
+  --input-border: #e5e5e5;
+  --input-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.03);
+  --btn-login-bg: #000000;
+  --btn-login-fg: #ffffff;
+  --btn-signup-bg: #ffffff;
+  --btn-signup-fg: #000000;
+  --btn-signup-border: #d1d5db;
+}
+
+.dark {
+  --canvas-bg: #212121;
+  --canvas-fg: #ececec;
+  --sidebar-bg: #171717;
+  --sidebar-fg: #ececec;
+  --sidebar-hover: #212121;
+  --sidebar-border: #2a2a2a;
+  --input-bg: #2f2f2f;
+  --input-border: #424242;
+  --input-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.35);
+  --btn-login-bg: #ffffff;
+  --btn-login-fg: #000000;
+  --btn-signup-bg: #212121;
+  --btn-signup-fg: #ffffff;
+  --btn-signup-border: #3c3c3c;
+}
+
+html,
+body {
+  background-color: var(--canvas-bg);
+  color: var(--canvas-fg);
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Custom scrollbars matching ChatGPT */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(120, 120, 120, 0.25);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(120, 120, 120, 0.45);
+}
