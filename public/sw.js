@@ -1,8 +1,9 @@
 // Akshra Ai - Progressive Web App Service Worker
-const CACHE_NAME = "akshra-ai-pwa-v1";
+const CACHE_NAME = "akshra-ai-pwa-v2";
 
 const PRECACHE_ASSETS = [
   "/",
+  "/favicon.ico",
   "/manifest.json",
   "/icons/icon-192x192.png",
   "/icons/icon-512x512.png",
@@ -10,6 +11,8 @@ const PRECACHE_ASSETS = [
   "/icons/icon-maskable-512x512.png",
   "/icons/apple-touch-icon.png",
   "/icons/favicon-32x32.png",
+  "/icons/favicon-16x16.png",
+  "/icons/favicon.svg",
 ];
 
 // Install: precache critical app shell
