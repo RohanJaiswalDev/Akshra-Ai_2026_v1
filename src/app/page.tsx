@@ -1,22 +1,28 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Sidebar, type SavedChat } from "@/components/Sidebar";
 import { Header } from "@/components/Header";
 import { ChatLanding } from "@/components/ChatLanding";
 import { ChatMessages, type Message } from "@/components/ChatMessages";
 import { AuthModal, type AuthUser } from "@/components/AuthModals";
 import { SettingsModal } from "@/components/SettingsModal";
+import { DEFAULT_MODEL_ID } from "@/lib/models";
 
 export default function Home() {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_MODEL_ID);
 
-  // Chat History toggle & saved list
-  const [isHistoryEnabled, setIsHistoryEnabled] = useState(false);
+  // Reference to abort ongoing chat stream
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Chat History toggle & saved list (Enabled by default!)
+  const [isHistoryEnabled, setIsHistoryEnabled] = useState(true);
+  const isHistoryEnabledRef = useRef(true);
   const [chatHistory, setChatHistory] = useState<SavedChat[]>([]);
 
   // Auth & Settings Modal states
@@ -29,26 +35,120 @@ export default function Home() {
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Load history toggle & saved chats from localStorage on mount
+  // Keep ref synchronized with state
+  useEffect(() => {
+    isHistoryEnabledRef.current = isHistoryEnabled;
+  }, [isHistoryEnabled]);
+
+  // Load history toggle, sidebar state, model, and saved chats from localStorage on mount
   useEffect(() => {
     try {
+      // Default history to TRUE unless explicitly turned off
       const savedToggle = localStorage.getItem("akshra_history_enabled");
-      if (savedToggle !== null) {
-        setIsHistoryEnabled(savedToggle === "true");
+      const enabled = savedToggle !== "false";
+      setIsHistoryEnabled(enabled);
+      isHistoryEnabledRef.current = enabled;
+
+      // Load sidebar state (default to open on desktop)
+      const savedSidebar = localStorage.getItem("akshra_sidebar_open");
+      if (savedSidebar !== null) {
+        setIsSidebarOpen(savedSidebar === "true");
+      } else if (typeof window !== "undefined") {
+        setIsSidebarOpen(window.innerWidth >= 768);
       }
 
+      // Load saved chat history
       const savedList = localStorage.getItem("akshra_chat_history");
       if (savedList) {
-        setChatHistory(JSON.parse(savedList));
+        try {
+          const parsed = JSON.parse(savedList);
+          if (Array.isArray(parsed)) {
+            setChatHistory(parsed);
+          }
+        } catch (e) {
+          console.error("Failed to parse saved chat history:", e);
+        }
+      }
+
+      // Load saved model
+      const savedModel = localStorage.getItem("akshra_selected_model");
+      if (savedModel) {
+        setSelectedModel(savedModel);
       }
     } catch (e) {
-      console.error("Failed to load local history:", e);
+      console.error("Failed to load local settings:", e);
     }
   }, []);
+
+  // Helper to reliably save chat to state and localStorage
+  const saveChatToHistory = (
+    chatId: string,
+    titleText: string,
+    chatMessages: Message[]
+  ) => {
+    if (!isHistoryEnabledRef.current) return;
+
+    setChatHistory((prev) => {
+      const title =
+        titleText.length > 28 ? titleText.substring(0, 28) + "..." : titleText;
+      const existingIndex = prev.findIndex((c) => c.id === chatId);
+      let updated: SavedChat[];
+
+      if (existingIndex >= 0) {
+        updated = [...prev];
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          messages: chatMessages,
+          updatedAt: "Just now",
+        };
+      } else {
+        updated = [
+          {
+            id: chatId,
+            title: title || "New Conversation",
+            messages: chatMessages,
+            updatedAt: "Just now",
+          },
+          ...prev,
+        ];
+      }
+
+      try {
+        localStorage.setItem("akshra_chat_history", JSON.stringify(updated));
+      } catch (e) {
+        console.error("Failed to save chat history to localStorage:", e);
+      }
+      return updated;
+    });
+  };
+
+  // Toggle sidebar and persist state
+  const handleToggleSidebar = () => {
+    setIsSidebarOpen((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("akshra_sidebar_open", next.toString());
+      } catch (e) {
+        console.error(e);
+      }
+      return next;
+    });
+  };
+
+  // Save model selection
+  const handleSelectModel = (modelId: string) => {
+    setSelectedModel(modelId);
+    try {
+      localStorage.setItem("akshra_selected_model", modelId);
+    } catch (e) {
+      console.error("Failed to save selected model:", e);
+    }
+  };
 
   // Save history toggle state
   const handleToggleHistory = (enabled: boolean) => {
     setIsHistoryEnabled(enabled);
+    isHistoryEnabledRef.current = enabled;
     try {
       localStorage.setItem("akshra_history_enabled", enabled.toString());
     } catch (e) {
@@ -64,12 +164,17 @@ export default function Home() {
     } catch (e) {
       console.error(e);
     }
+    handleNewChat();
   };
 
   // Select chat from sidebar
   const handleSelectChat = (chat: SavedChat) => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
     setActiveChatId(chat.id);
-    setMessages(chat.messages);
+    setMessages(chat.messages || []);
     setIsStreaming(false);
   };
 
@@ -116,15 +221,33 @@ export default function Home() {
     }
   };
 
-  // Handle New Chat: resets to landing view "Hello, Coder.Developer"
+  // Handle New Chat: resets to landing view
   const handleNewChat = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
     setActiveChatId(null);
     setMessages([]);
     setIsStreaming(false);
   };
 
-  // Send new message
-  const handleSendMessage = (text: string) => {
+  // Stop chat generation immediately like in ChatGPT
+  const handleStop = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsStreaming(false);
+    setMessages((prev) =>
+      prev.map((m) => (m.isStreaming ? { ...m, isStreaming: false } : m))
+    );
+  };
+
+  // Send new message to OpenRouter API with real streaming
+  const handleSendMessage = async (text: string) => {
+    if (isStreaming) return;
+
     const userMsg: Message = {
       id: Date.now().toString(),
       role: "user",
@@ -135,28 +258,19 @@ export default function Home() {
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
 
-    // If starting a fresh chat & history is enabled, register chat
+    // Register active chat ID
     const currentId = activeChatId || `chat-${Date.now()}`;
     if (!activeChatId) {
       setActiveChatId(currentId);
     }
 
-    // Simulate realistic AI streaming response
-    setIsStreaming(true);
+    // Immediately save chat to history so it shows in the sidebar right away!
+    saveChatToHistory(currentId, text, newMessages);
+
     const botMsgId = (Date.now() + 1).toString();
+    setIsStreaming(true);
 
-    let fullResponse = `Hello! I'm **Akshra Ai**.\n\n`;
-    if (
-      text.toLowerCase().includes("code") ||
-      text.toLowerCase().includes("hook") ||
-      text.toLowerCase().includes("debug")
-    ) {
-      fullResponse += `Here is a clean TypeScript example demonstrating modern patterns:\n\n\`\`\`typescript\nimport { useState, useEffect } from 'react';\n\nexport function useAkshraTheme() {\n  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');\n  \n  useEffect(() => {\n    console.log('Akshra Ai theme system initialized:', theme);\n  }, [theme]);\n\n  return { theme, setTheme };\n}\n\`\`\`\n\nIs there anything specific you would like to customize or expand?`;
-    } else {
-      fullResponse += `You asked: "${text}".\n\nI have processed your prompt with the Akshra Turbo engine. You can ask follow-ups, request code, or switch between Light, Dark, and System theme modes anytime!`;
-    }
-
-    // Placeholder message for streaming
+    // Placeholder message for live streaming
     setMessages((prev) => [
       ...prev,
       {
@@ -168,88 +282,151 @@ export default function Home() {
       },
     ]);
 
-    // Stream text progressively
-    let currentIndex = 0;
-    const interval = setInterval(() => {
-      currentIndex += 4;
-      if (currentIndex >= fullResponse.length) {
-        clearInterval(interval);
-        const finalBotMsg: Message = {
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messages: newMessages.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
+          model: selectedModel,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        let errorDetails = "Failed to connect to OpenRouter.";
+        try {
+          const errData = await response.json();
+          if (errData?.error) errorDetails = errData.error;
+        } catch {
+          const raw = await response.text();
+          if (raw) errorDetails = raw;
+        }
+
+        const errorMsg: Message = {
           id: botMsgId,
           role: "assistant",
-          content: fullResponse,
+          content: `⚠️ **OpenRouter Connection Notice**:\n\n${errorDetails}\n\n*Check your \`OPENROUTER_API_KEY\` in \`.env.local\` to enable real AI responses.*`,
           timestamp: "Just now",
           isStreaming: false,
         };
 
-        const completedMessages = [...newMessages, finalBotMsg];
-
         setMessages((prev) =>
-          prev.map((m) =>
-            m.id === botMsgId ? finalBotMsg : m
-          )
+          prev.map((m) => (m.id === botMsgId ? errorMsg : m))
         );
         setIsStreaming(false);
+        abortControllerRef.current = null;
 
-        // Save into history if history is enabled
-        if (isHistoryEnabled) {
-          setChatHistory((prev) => {
-            const title = text.length > 26 ? text.substring(0, 26) + "..." : text;
-            const existingIndex = prev.findIndex((c) => c.id === currentId);
-            let updated: SavedChat[];
+        // Save error state in chat history as well
+        saveChatToHistory(currentId, text, [...newMessages, errorMsg]);
+        return;
+      }
 
-            if (existingIndex >= 0) {
-              updated = [...prev];
-              updated[existingIndex] = {
-                ...updated[existingIndex],
-                messages: completedMessages,
-                updatedAt: "Just now",
-              };
-            } else {
-              updated = [
-                {
-                  id: currentId,
-                  title,
-                  messages: completedMessages,
-                  updatedAt: "Just now",
-                },
-                ...prev,
-              ];
-            }
+      if (!response.body) {
+        throw new Error("No response stream body received.");
+      }
 
-            try {
-              localStorage.setItem("akshra_chat_history", JSON.stringify(updated));
-            } catch (e) {
-              console.error(e);
-            }
-            return updated;
-          });
-        }
-      } else {
-        const partial = fullResponse.slice(0, currentIndex);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = "";
+
+      while (true) {
+        if (controller.signal.aborted) break;
+
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        accumulated += chunk;
+
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === botMsgId ? { ...m, content: partial } : m
+            m.id === botMsgId ? { ...m, content: accumulated } : m
           )
         );
       }
-    }, 18);
+
+      const finalBotMsg: Message = {
+        id: botMsgId,
+        role: "assistant",
+        content: accumulated,
+        timestamp: "Just now",
+        isStreaming: false,
+      };
+
+      setMessages((prev) =>
+        prev.map((m) => (m.id === botMsgId ? finalBotMsg : m))
+      );
+      setIsStreaming(false);
+      abortControllerRef.current = null;
+
+      // Finalize and persist completed chat to history
+      saveChatToHistory(currentId, text, [...newMessages, finalBotMsg]);
+    } catch (err: unknown) {
+      // If user aborted via stop button, finalize gracefully and save partial chat
+      if (
+        (err instanceof Error && err.name === "AbortError") ||
+        controller.signal.aborted
+      ) {
+        setIsStreaming(false);
+        abortControllerRef.current = null;
+        setMessages((prev) => {
+          const updated = prev.map((m) =>
+            m.id === botMsgId ? { ...m, isStreaming: false } : m
+          );
+          saveChatToHistory(currentId, text, updated);
+          return updated;
+        });
+        return;
+      }
+
+      console.error("Chat Stream Error:", err);
+      const errMsg = err instanceof Error ? err.message : "Network error";
+      const errorMsg: Message = {
+        id: botMsgId,
+        role: "assistant",
+        content: `⚠️ **Network / Connection Error**:\n\n${errMsg}\n\nPlease verify your connection and OpenRouter API status.`,
+        timestamp: "Just now",
+        isStreaming: false,
+      };
+      setMessages((prev) =>
+        prev.map((m) => (m.id === botMsgId ? errorMsg : m))
+      );
+      setIsStreaming(false);
+      abortControllerRef.current = null;
+      saveChatToHistory(currentId, text, [...newMessages, errorMsg]);
+    }
   };
 
+  // Handle Regenerate last response
   const handleRegenerate = () => {
-    if (messages.length === 0) return;
+    if (messages.length === 0 || isStreaming) return;
     const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
     if (lastUserMsg) {
+      // Filter out the last assistant response
+      const withoutLastAssistant = [...messages];
+      if (withoutLastAssistant[withoutLastAssistant.length - 1]?.role === "assistant") {
+        withoutLastAssistant.pop();
+      }
+      setMessages(withoutLastAssistant);
       handleSendMessage(lastUserMsg.content);
     }
   };
 
   return (
-    <div className="relative min-h-screen flex w-full bg-[var(--canvas-bg)] text-[var(--canvas-fg)] transition-colors duration-200">
+    <div className="relative h-screen h-[100dvh] flex w-full bg-[var(--canvas-bg)] text-[var(--canvas-fg)] overflow-hidden transition-colors duration-200">
       {/* Sidebar (Collapsed Rail & Expanded Drawer with dynamic History support) */}
       <Sidebar
         isOpen={isSidebarOpen}
-        onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+        onToggle={handleToggleSidebar}
         onNewChat={handleNewChat}
         onOpenSettings={() => setIsSettingsOpen(true)}
         isHistoryEnabled={isHistoryEnabled}
@@ -261,21 +438,23 @@ export default function Home() {
 
       {/* Main Content Area */}
       <div
-        className={`flex-1 flex flex-col min-h-screen transition-all duration-300 ${
+        className={`flex-1 flex flex-col h-full min-h-0 overflow-hidden transition-all duration-300 ${
           isSidebarOpen ? "md:pl-[260px]" : "pl-14 sm:pl-16"
         }`}
       >
-        {/* Top Header */}
+        {/* Top Header with Model Selector */}
         <Header
           onOpenLogin={() => setAuthModal({ isOpen: true, mode: "login" })}
           onOpenSignup={() => setAuthModal({ isOpen: true, mode: "signup" })}
           isSidebarOpen={isSidebarOpen}
           user={user}
           onLogout={handleLogout}
+          selectedModel={selectedModel}
+          onSelectModel={handleSelectModel}
         />
 
         {/* Dynamic View: Landing (Hello, Coder.Developer) vs Active Chat Messages */}
-        <main className="flex-1 flex flex-col">
+        <main className="flex-1 min-h-0 flex flex-col overflow-hidden relative">
           {messages.length === 0 ? (
             <ChatLanding onSubmit={handleSendMessage} />
           ) : (
@@ -284,6 +463,7 @@ export default function Home() {
               onSendMessage={handleSendMessage}
               onRegenerate={handleRegenerate}
               isStreaming={isStreaming}
+              onStop={handleStop}
             />
           )}
         </main>
@@ -298,13 +478,15 @@ export default function Home() {
         onAuthSuccess={(authenticatedUser) => setUser(authenticatedUser)}
       />
 
-      {/* Settings Modal (with real history toggle & clear history) */}
+      {/* Settings Modal (with model selector, real history toggle & clear history) */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         isHistoryEnabled={isHistoryEnabled}
         onToggleHistory={handleToggleHistory}
         onClearHistory={handleClearHistory}
+        selectedModel={selectedModel}
+        onSelectModel={handleSelectModel}
       />
     </div>
   );
