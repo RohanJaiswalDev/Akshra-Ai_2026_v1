@@ -349,6 +349,8 @@ export default function Home() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let accumulated = "";
+      let rafId: number | null = null;
+      let lastRenderedTime = 0;
 
       while (true) {
         if (controller.signal.aborted) break;
@@ -359,11 +361,24 @@ export default function Home() {
         const chunk = decoder.decode(value, { stream: true });
         accumulated += chunk;
 
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === botMsgId ? { ...m, content: accumulated } : m
-          )
-        );
+        // Smooth 60fps streaming batching with requestAnimationFrame
+        const now = performance.now();
+        if (!rafId && now - lastRenderedTime >= 20) {
+          lastRenderedTime = now;
+          rafId = requestAnimationFrame(() => {
+            rafId = null;
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === botMsgId ? { ...m, content: accumulated } : m
+              )
+            );
+          });
+        }
+      }
+
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
       }
 
       const finalBotMsg: Message = {
@@ -454,7 +469,7 @@ export default function Home() {
 
       {/* Main Content Area */}
       <div
-        className={`flex-1 flex flex-col h-full min-h-0 overflow-hidden transition-all duration-300 ${isSidebarOpen ? "md:pl-[260px]" : "md:pl-14 sm:md:pl-16"
+        className={`flex-1 flex flex-col h-full min-h-0 overflow-hidden transition-[padding] duration-200 ease-in-out ${isSidebarOpen ? "md:pl-[260px]" : "md:pl-14 sm:md:pl-16"
           }`}
       >
         {/* Top Header with Model Selector */}

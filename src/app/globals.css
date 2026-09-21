@@ -48,9 +48,20 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Ensure smooth touch scrolling on iOS & mobile devices */
-* {
+/* Ensure smooth touch scrolling on scrollable containers only (never on universal *) */
+.overflow-y-auto,
+.overflow-x-auto,
+[data-scrollable="true"] {
   -webkit-overflow-scrolling: touch;
+  scroll-behavior: auto;
+  /* Ensure immediate native response to mouse wheel */
+}
+
+/* GPU compositor optimization for fixed/floating bars and smooth animations */
+.gpu-accelerated {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform;
 }
 
 /* Prevent auto-zoom on input focus in iOS Safari */

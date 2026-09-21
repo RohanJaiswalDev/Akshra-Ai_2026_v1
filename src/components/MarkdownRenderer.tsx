@@ -8,7 +8,10 @@ interface MarkdownRendererProps {
   isStreaming?: boolean;
 }
 
-export function MarkdownRenderer({ content, isStreaming }: MarkdownRendererProps) {
+export const MarkdownRenderer = React.memo(function MarkdownRenderer({
+  content,
+  isStreaming,
+}: MarkdownRendererProps) {
   // If content is empty while streaming, show single thin cursor perfectly centered
   if (!content || !content.trim()) {
     return (
@@ -20,8 +23,8 @@ export function MarkdownRenderer({ content, isStreaming }: MarkdownRendererProps
     );
   }
 
-  // Parse message into code blocks and markdown text segments
-  const segments = parseContent(content);
+  // Parse message into code blocks and markdown text segments (memoized)
+  const segments = React.useMemo(() => parseContent(content), [content]);
 
   return (
     <div className="space-y-3 font-sans text-sm sm:text-[15px] leading-7">
@@ -50,9 +53,15 @@ export function MarkdownRenderer({ content, isStreaming }: MarkdownRendererProps
       })}
     </div>
   );
-}
+});
 
-function CodeBlock({ language, code }: { language: string; code: string }) {
+const CodeBlock = React.memo(function CodeBlock({
+  language,
+  code,
+}: {
+  language: string;
+  code: string;
+}) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -94,7 +103,7 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
       </div>
     </div>
   );
-}
+});
 
 interface ContentSegment {
   type: "text" | "code";
