@@ -80,17 +80,15 @@ export function SettingsModal({
               role="switch"
               aria-checked={isHistoryEnabled}
               onClick={() => onToggleHistory(!isHistoryEnabled)}
-              className={`w-11 h-6 rounded-full transition-colors relative flex items-center p-0.5 cursor-pointer shrink-0 ${
-                isHistoryEnabled
-                  ? "bg-neutral-900 dark:bg-white"
-                  : "bg-neutral-300 dark:bg-neutral-700"
-              }`}
+              className={`w-11 h-6 rounded-full transition-colors relative flex items-center p-0.5 cursor-pointer shrink-0 ${isHistoryEnabled
+                ? "bg-neutral-900 dark:bg-white"
+                : "bg-neutral-300 dark:bg-neutral-700"
+                }`}
               title={isHistoryEnabled ? "Disable chat history" : "Enable chat history"}
             >
               <div
-                className={`w-5 h-5 rounded-full bg-white dark:bg-neutral-900 shadow-md transition-transform duration-200 ${
-                  isHistoryEnabled ? "translate-x-5" : "translate-x-0"
-                }`}
+                className={`w-5 h-5 rounded-full bg-white dark:bg-neutral-900 shadow-md transition-transform duration-200 ${isHistoryEnabled ? "translate-x-5" : "translate-x-0"
+                  }`}
               />
             </button>
           </div>

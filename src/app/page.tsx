@@ -434,13 +434,16 @@ export default function Home() {
         activeChatId={activeChatId}
         onSelectChat={handleSelectChat}
         onDeleteChat={handleDeleteChat}
+        user={user}
+        onLogout={handleLogout}
+        onOpenLogin={() => setAuthModal({ isOpen: true, mode: "login" })}
+        onOpenSignup={() => setAuthModal({ isOpen: true, mode: "signup" })}
       />
 
       {/* Main Content Area */}
       <div
-        className={`flex-1 flex flex-col h-full min-h-0 overflow-hidden transition-all duration-300 ${
-          isSidebarOpen ? "md:pl-[260px]" : "pl-14 sm:pl-16"
-        }`}
+        className={`flex-1 flex flex-col h-full min-h-0 overflow-hidden transition-all duration-300 ${isSidebarOpen ? "md:pl-[260px]" : "pl-14 sm:pl-16"
+          }`}
       >
         {/* Top Header with Model Selector */}
         <Header
