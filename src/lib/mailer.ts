@@ -10,29 +10,30 @@ export async function sendOtpEmail({ email, otp }: SendOtpMailParams): Promise<{
   messageId?: string;
   previewUrl?: string | false;
 }> {
-  const host = process.env.EMAIL_SERVER_HOST;
-  const port = parseInt(process.env.EMAIL_SERVER_PORT || "587", 10);
-  const user = process.env.EMAIL_SERVER_USER;
-  const pass = process.env.EMAIL_SERVER_PASS;
-  const from = process.env.EMAIL_FROM || "Akshra Ai <noreply@akshra.ai>";
+  const service = process.env.SMTP_SERVICE || process.env.SERVICE || "gmail";
+  const user = process.env.SMTP_USER || process.env.EMAIL_SERVER_USER;
+  const pass = process.env.SMTP_PASS || process.env.EMAIL_SERVER_PASS;
+  const from =
+    process.env.SMTP_FROM ||
+    process.env.EMAIL_FROM ||
+    (user ? `"Akshra Ai" <${user}>` : "Akshra Ai <noreply@akshra.ai>");
 
   console.log(`[Akshra Ai Auth] ══════════════════════════════════════`);
   console.log(`[Akshra Ai Auth] Verification OTP for ${email}: [ ${otp} ]`);
   console.log(`[Akshra Ai Auth] Valid for 10 minutes.`);
+  console.log(`[Akshra Ai Auth] Service: ${service} | From: ${from}`);
   console.log(`[Akshra Ai Auth] ══════════════════════════════════════`);
 
   // If credentials are not configured, return dev fallback
   if (!user || !pass) {
     console.log(
-      "[Nodemailer] SMTP credentials not fully configured in .env.local. (OTP printed above for dev testing)"
+      "[Nodemailer] SMTP credentials (SMTP_USER, SMTP_PASS) not configured in .env.local. (OTP printed above for dev testing)"
     );
     return { delivered: false };
   }
 
   const transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
+    service,
     auth: {
       user,
       pass,
