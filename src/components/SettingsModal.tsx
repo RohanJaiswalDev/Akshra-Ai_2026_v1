@@ -1,10 +1,11 @@
 "use client";
 
 import React from "react";
-import { X, Trash2, Sparkles } from "lucide-react";
+import { X, Trash2, Sparkles, Download, CheckCircle2 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { ThemeSelector } from "./ThemeSelector";
 import { AVAILABLE_MODELS } from "@/lib/models";
+import { usePWA } from "./PWAProvider";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export function SettingsModal({
   onSelectModel,
 }: SettingsModalProps) {
   const { theme } = useTheme();
+  const { isInstalled, promptInstall } = usePWA();
 
   if (!isOpen) return null;
 
@@ -117,6 +119,34 @@ export function SettingsModal({
               <span className="text-xs px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 font-mono text-neutral-700 dark:text-neutral-300">
                 {currentModel.name}
               </span>
+            )}
+          </div>
+
+          {/* App Installation / PWA status */}
+          <div className="flex items-center justify-between py-3 border-b border-neutral-100 dark:border-neutral-800/80">
+            <div>
+              <p className="text-sm font-medium">App Installation</p>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                {isInstalled
+                  ? "Running in standalone app mode"
+                  : "Install Akshra Ai for faster launch & native experience"}
+              </p>
+            </div>
+
+            {isInstalled ? (
+              <span className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-xl font-medium border border-emerald-200 dark:border-emerald-800 shrink-0">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Installed</span>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={promptInstall}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-medium hover:opacity-90 transition cursor-pointer shadow-xs shrink-0"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Install</span>
+              </button>
             )}
           </div>
 

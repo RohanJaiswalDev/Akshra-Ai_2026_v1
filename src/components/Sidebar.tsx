@@ -13,9 +13,11 @@ import {
   MessageSquare,
   LogOut,
   User as UserIcon,
+  Download,
 } from "lucide-react";
 import { ThemeSelector } from "./ThemeSelector";
 import { type AuthUser } from "./AuthModals";
+import { usePWA } from "./PWAProvider";
 
 export interface SavedChat {
   id: string;
@@ -57,6 +59,7 @@ export function Sidebar({
 }: SidebarProps) {
   const [isRailUserMenuOpen, setIsRailUserMenuOpen] = useState(false);
   const [isExpandedUserMenuOpen, setIsExpandedUserMenuOpen] = useState(false);
+  const { isInstalled, promptInstall } = usePWA();
 
   return (
     <>
@@ -178,6 +181,22 @@ export function Sidebar({
             <ChevronRight className="w-3.5 h-3.5 text-neutral-400" />
           </button>
 
+          {/* Install App button (PWA) */}
+          {!isInstalled && (
+            <button
+              onClick={promptInstall}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-neutral-200/60 dark:hover:bg-neutral-800 text-xs font-medium text-neutral-700 dark:text-neutral-300 transition cursor-pointer group"
+            >
+              <span className="flex items-center gap-2.5">
+                <Download className="w-4 h-4 text-neutral-500 dark:text-neutral-400 group-hover:text-neutral-900 dark:group-hover:text-white transition" />
+                <span>Install App</span>
+              </span>
+              <span className="text-[10px] bg-neutral-200/80 dark:bg-neutral-800 px-1.5 py-0.5 rounded-md font-medium text-neutral-500 dark:text-neutral-400">
+                PWA
+              </span>
+            </button>
+          )}
+
           {/* User Auth Section at the very end of expanded sidebar */}
           {user ? (
             <div className="relative pt-1 border-t border-neutral-200/60 dark:border-neutral-800/60">
@@ -273,6 +292,17 @@ export function Sidebar({
             >
               <NewChatIcon className="w-5 h-5" />
             </button>
+
+            {!isInstalled && (
+              <button
+                onClick={promptInstall}
+                className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-neutral-200/60 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 transition cursor-pointer"
+                title="Install Akshra Ai App"
+                aria-label="Install App"
+              >
+                <Download className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           {/* Bottom: Auth / User Avatar & Logout Dropdown at the very end of rail */}
