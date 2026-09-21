@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 60; // Max execution duration on Vercel Hobby tier for streaming AI completions
 
 export async function POST(req: Request) {
   try {
@@ -46,7 +48,7 @@ export async function POST(req: Request) {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
-          "HTTP-Referer": req.headers.get("origin") || "http://localhost:3000",
+          "HTTP-Referer": req.headers.get("origin") || req.headers.get("referer") || "https://akshra-ai.vercel.app",
           "X-Title": "Akshra Ai",
           "Content-Type": "application/json",
         },
