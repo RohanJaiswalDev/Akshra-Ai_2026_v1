@@ -192,7 +192,7 @@ export function Sidebar({
                 <span>Install App</span>
               </span>
               <span className="text-[10px] bg-neutral-200/80 dark:bg-neutral-800 px-1.5 py-0.5 rounded-md font-medium text-neutral-500 dark:text-neutral-400">
-                PWA
+                Android/IOS
               </span>
             </button>
           )}
