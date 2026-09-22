@@ -53,7 +53,7 @@ export function SettingsModal({
             <div>
               <p className="text-sm font-medium">Theme</p>
               <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                Choose how Akshra Ai looks for you
+                Choose between Light, Dark, and Eye Protection Read Mode
               </p>
             </div>
             <div className="w-full sm:w-48">

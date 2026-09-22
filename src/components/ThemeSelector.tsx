@@ -1,26 +1,35 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useTheme } from "next-themes";
-import { Sun, Moon, Monitor, Check } from "lucide-react";
+import { Sun, Moon, Eye, Check } from "lucide-react";
 
 interface ThemeSelectorProps {
   compact?: boolean;
 }
 
+const emptySubscribe = () => () => { };
+
 export function ThemeSelector({ compact = false }: ThemeSelectorProps) {
   const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  // Client hydration check without synchronous setState in effect
+  const mounted = React.useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
 
   const themes = [
-    { id: "light", label: "Light", icon: Sun },
-    { id: "dark", label: "Dark", icon: Moon },
-    { id: "system", label: "System", icon: Monitor },
+    { id: "light", label: "Light", icon: Sun, title: "Light Mode" },
+    { id: "dark", label: "Dark", icon: Moon, title: "Dark Mode" },
+    {
+      id: "read",
+      label: "Read Mode",
+      icon: Eye,
+      title: "Eye Protection / Night Read Mode",
+    },
   ] as const;
 
   if (!mounted) {
@@ -35,10 +44,10 @@ export function ThemeSelector({ compact = false }: ThemeSelectorProps) {
     );
   }
 
-  const currentThemeObj = themes.find((t) => t.id === theme) || themes[2];
+  const currentThemeObj = themes.find((t) => t.id === theme) || themes[1];
   const CurrentIcon = currentThemeObj.icon;
 
-  // Compact version for the top Header (icon-only, no labels)
+  // Compact version for the top Header (icon-only button with dropdown)
   if (compact) {
     return (
       <div className="relative">
@@ -57,9 +66,9 @@ export function ThemeSelector({ compact = false }: ThemeSelectorProps) {
               className="fixed inset-0 z-40"
               onClick={() => setIsOpen(false)}
             />
-            <div className="absolute right-0 mt-2 w-36 bg-white dark:bg-[#1a1a1a] border border-neutral-200 dark:border-neutral-700 rounded-2xl shadow-xl z-50 p-1.5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-[#1a1a1a] border border-neutral-200 dark:border-neutral-700 rounded-2xl shadow-xl z-50 p-1.5 animate-in fade-in zoom-in-95 duration-150">
               <div className="space-y-1">
-                {themes.map(({ id, label, icon: Icon }) => {
+                {themes.map(({ id, label, icon: Icon, title }) => {
                   const isSelected = theme === id;
                   return (
                     <button
@@ -72,6 +81,7 @@ export function ThemeSelector({ compact = false }: ThemeSelectorProps) {
                         ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-950 font-semibold shadow-xs"
                         : "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-[#282828]"
                         }`}
+                      title={title}
                     >
                       <span className="flex items-center gap-2.5">
                         <Icon className="w-4 h-4" />
@@ -91,10 +101,10 @@ export function ThemeSelector({ compact = false }: ThemeSelectorProps) {
     );
   }
 
-  // Full segmented pill switcher (icon-only, no labels)
+  // Full segmented pill switcher (icon + tooltip)
   return (
     <div className="w-full flex items-center p-1 bg-[#eeeeee] dark:bg-[#111111] rounded-xl border border-neutral-300/70 dark:border-neutral-800 shadow-inner">
-      {themes.map(({ id, label, icon: Icon }) => {
+      {themes.map(({ id, icon: Icon, title }) => {
         const isActive = theme === id;
         return (
           <button
@@ -105,8 +115,8 @@ export function ThemeSelector({ compact = false }: ThemeSelectorProps) {
               ? "bg-white text-neutral-950 font-semibold shadow-xs border border-neutral-300/80 dark:bg-[#2c2c2c] dark:text-white dark:border-neutral-600/70"
               : "text-neutral-600 hover:text-neutral-900 hover:bg-white/40 dark:text-neutral-400 dark:hover:text-neutral-100 dark:hover:bg-[#1a1a1a]"
               }`}
-            title={`${label} Mode`}
-            aria-label={`${label} Mode`}
+            title={title}
+            aria-label={title}
           >
             <Icon
               className={`w-4 h-4 ${isActive
