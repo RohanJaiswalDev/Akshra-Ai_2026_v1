@@ -168,12 +168,17 @@ export function Sidebar({
                       </span>
                     </div>
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         onDeleteChat(chat.id);
                       }}
-                      className="opacity-0 group-hover:opacity-100 p-1 text-neutral-400 hover:text-red-500 hover:bg-neutral-200/70 dark:hover:bg-neutral-700/60 rounded-md transition cursor-pointer shrink-0"
+                      className={`p-1.5 md:p-1 text-neutral-400 dark:text-neutral-500 hover:text-red-500 dark:hover:text-red-400 active:text-red-600 hover:bg-neutral-200/70 dark:hover:bg-neutral-700/60 rounded-md transition cursor-pointer shrink-0 ${isActive
+                        ? "opacity-100"
+                        : "opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100"
+                        }`}
                       title="Delete chat"
+                      aria-label="Delete chat"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
