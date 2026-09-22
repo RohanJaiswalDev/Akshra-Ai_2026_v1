@@ -21,6 +21,7 @@ export interface Message {
   content: string;
   timestamp: string;
   isStreaming?: boolean;
+  isError?: boolean;
 }
 
 interface ChatMessagesProps {

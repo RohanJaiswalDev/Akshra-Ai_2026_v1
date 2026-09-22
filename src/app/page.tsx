@@ -265,7 +265,7 @@ export default function Home() {
   };
 
   // Send new message to OpenRouter API with real streaming
-  const handleSendMessage = async (text: string) => {
+  const handleSendMessage = async (text: string, conversation?: Message[]) => {
     // Strict authentication gate: Require genuine logged-in user
     if (!user) {
       setPendingPrompt(text);
@@ -282,7 +282,9 @@ export default function Home() {
       timestamp: "Just now",
     };
 
-    const newMessages = [...messages, userMsg];
+    // Never send a previous connection-error notice back to the model as context.
+    const previousMessages = (conversation || messages).filter((message) => !message.isError);
+    const newMessages = [...previousMessages, userMsg];
     setMessages(newMessages);
 
     // Register active chat ID
@@ -330,9 +332,11 @@ export default function Home() {
 
       if (!response.ok) {
         let errorDetails = "Failed to connect to OpenRouter.";
+        let retryable = false;
         try {
           const errData = await response.json();
           if (errData?.error) errorDetails = errData.error;
+          retryable = errData?.retryable === true;
         } catch {
           const raw = await response.text();
           if (raw) errorDetails = raw;
@@ -341,9 +345,12 @@ export default function Home() {
         const errorMsg: Message = {
           id: botMsgId,
           role: "assistant",
-          content: `⚠️ **OpenRouter Connection Notice**:\n\n${errorDetails}\n\n*Check your \`OPENROUTER_API_KEY\` in \`.env.local\` to enable real AI responses.*`,
+          content: retryable
+            ? `⚠️ **Temporary AI service issue**\n\n${errorDetails}\n\nYour message was not processed. Use **Regenerate response** to try again.`
+            : `⚠️ **Unable to send message**\n\n${errorDetails}`,
           timestamp: "Just now",
           isStreaming: false,
+          isError: true,
         };
 
         setMessages((prev) =>
@@ -352,8 +359,7 @@ export default function Home() {
         setIsStreaming(false);
         abortControllerRef.current = null;
 
-        // Save error state in chat history as well
-        saveChatToHistory(currentId, text, [...newMessages, errorMsg]);
+        // Keep the prompt in history, but never save a provider error as an AI answer.
         return;
       }
 
@@ -435,16 +441,16 @@ export default function Home() {
       const errorMsg: Message = {
         id: botMsgId,
         role: "assistant",
-        content: `⚠️ **Network / Connection Error**:\n\n${errMsg}\n\nPlease verify your connection and OpenRouter API status.`,
+        content: `⚠️ **Network error**\n\n${errMsg}\n\nYour message was not processed. Use **Regenerate response** to try again.`,
         timestamp: "Just now",
         isStreaming: false,
+        isError: true,
       };
       setMessages((prev) =>
         prev.map((m) => (m.id === botMsgId ? errorMsg : m))
       );
       setIsStreaming(false);
       abortControllerRef.current = null;
-      saveChatToHistory(currentId, text, [...newMessages, errorMsg]);
     }
   };
 
@@ -455,15 +461,19 @@ export default function Home() {
       return;
     }
     if (messages.length === 0 || isStreaming) return;
-    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
-    if (lastUserMsg) {
-      // Filter out the last assistant response
-      const withoutLastAssistant = [...messages];
-      if (withoutLastAssistant[withoutLastAssistant.length - 1]?.role === "assistant") {
-        withoutLastAssistant.pop();
+    let lastUserIndex = -1;
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index].role === "user") {
+        lastUserIndex = index;
+        break;
       }
-      setMessages(withoutLastAssistant);
-      handleSendMessage(lastUserMsg.content);
+    }
+
+    if (lastUserIndex >= 0) {
+      // Resend the last prompt once, with only the preceding conversation as context.
+      // This prevents the old answer and duplicate user prompt from being sent upstream.
+      const lastUserMsg = messages[lastUserIndex];
+      handleSendMessage(lastUserMsg.content, messages.slice(0, lastUserIndex));
     }
   };
 
