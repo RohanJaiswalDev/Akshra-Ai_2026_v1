@@ -4,7 +4,6 @@ import React from "react";
 import { X, Trash2, Sparkles, Download, CheckCircle2 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { ThemeSelector } from "./ThemeSelector";
-import { AVAILABLE_MODELS } from "@/lib/models";
 import { usePWA } from "./PWAProvider";
 
 interface SettingsModalProps {
@@ -30,9 +29,6 @@ export function SettingsModal({
   const { isInstalled, promptInstall } = usePWA();
 
   if (!isOpen) return null;
-
-  const currentModel =
-    AVAILABLE_MODELS.find((m) => m.id === selectedModel) || AVAILABLE_MODELS[0];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200 select-none">
@@ -95,32 +91,6 @@ export function SettingsModal({
             </button>
           </div>
 
-          {/* Model selection */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 border-b border-neutral-100 dark:border-neutral-800/80">
-            <div>
-              <p className="text-sm font-medium">Active AI Model</p>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                Powered via OpenRouter API
-              </p>
-            </div>
-            {onSelectModel ? (
-              <select
-                value={selectedModel || currentModel.id}
-                onChange={(e) => onSelectModel(e.target.value)}
-                className="bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl px-3 py-2 text-xs font-medium text-neutral-800 dark:text-neutral-200 outline-none cursor-pointer"
-              >
-                {AVAILABLE_MODELS.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name} ({m.provider})
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <span className="text-xs px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 font-mono text-neutral-700 dark:text-neutral-300">
-                {currentModel.name}
-              </span>
-            )}
-          </div>
 
           {/* App Installation / PWA status */}
           <div className="flex items-center justify-between py-3 border-b border-neutral-100 dark:border-neutral-800/80">
