@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { ArrowUp, Code2, Compass, Lightbulb, PenLine, Lock, Sparkles, LogIn } from "lucide-react";
+import { ArrowUp, Code2, Compass, Lightbulb, PenLine, Lock } from "lucide-react";
 import { type AuthUser } from "./AuthModals";
 
 interface ChatLandingProps {
@@ -81,35 +81,12 @@ export function ChatLanding({
           </h1>
         ) : (
           <div className="space-y-2 px-2">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800/80 border border-neutral-200/70 dark:border-neutral-700/60 text-xs font-medium text-neutral-600 dark:text-neutral-300 mb-1">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>Next-Gen Conversational Intelligence</span>
-            </div>
             <h1 className="text-[24px] sm:text-[30px] md:text-[34px] font-semibold tracking-tight text-neutral-900 dark:text-neutral-50 font-sans">
               Welcome to Akshra Ai
             </h1>
             <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 max-w-md mx-auto">
               Please log in or create an account to start chatting with state-of-the-art AI models.
             </p>
-
-            {/* Prominent CTA buttons for unauthenticated visitors */}
-            <div className="flex items-center justify-center gap-2.5 pt-2">
-              <button
-                type="button"
-                onClick={onOpenLogin}
-                className="flex items-center gap-2 px-5 py-2 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs sm:text-sm font-medium hover:opacity-90 active:scale-95 transition shadow-sm cursor-pointer"
-              >
-                <LogIn className="w-3.5 h-3.5" />
-                <span>Log in</span>
-              </button>
-              <button
-                type="button"
-                onClick={onOpenSignup}
-                className="px-5 py-2 rounded-full border border-neutral-300 dark:border-neutral-700 bg-white/80 dark:bg-transparent hover:bg-neutral-50 dark:hover:bg-neutral-800/80 text-neutral-800 dark:text-neutral-200 text-xs sm:text-sm font-medium active:scale-95 transition cursor-pointer"
-              >
-                Sign up for free
-              </button>
-            </div>
           </div>
         )}
 
@@ -122,11 +99,10 @@ export function ChatLanding({
             onClick={() => {
               if (!user) onOpenLogin();
             }}
-            className={`w-full relative flex items-center bg-white dark:bg-[#2f2f2f] rounded-full border border-neutral-200/90 dark:border-[#424242] shadow-[0_4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.35)] transition-all duration-200 ${
-              user
-                ? "focus-within:border-neutral-400 dark:focus-within:border-neutral-500 focus-within:shadow-[0_6px_30px_rgba(0,0,0,0.1)]"
-                : "cursor-pointer hover:border-neutral-400 dark:hover:border-neutral-600"
-            } px-4 sm:px-6 py-2.5 sm:py-3.5`}
+            className={`w-full relative flex items-center bg-white dark:bg-[#2f2f2f] rounded-full border border-neutral-200/90 dark:border-[#424242] shadow-[0_4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.35)] transition-all duration-200 ${user
+              ? "focus-within:border-neutral-400 dark:focus-within:border-neutral-500 focus-within:shadow-[0_6px_30px_rgba(0,0,0,0.1)]"
+              : "cursor-pointer hover:border-neutral-400 dark:hover:border-neutral-600"
+              } px-4 sm:px-6 py-2.5 sm:py-3.5`}
           >
             {/* Input Field with exact placeholder and 16px font to prevent mobile iOS zoom */}
             <input
@@ -141,9 +117,8 @@ export function ChatLanding({
                   : "Log in or sign up to ask Akshra Ai anything..."
               }
               readOnly={!user}
-              className={`w-full bg-transparent text-[16px] sm:text-base text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-400 outline-none pr-2 font-normal ${
-                !user ? "cursor-pointer select-none" : ""
-              }`}
+              className={`w-full bg-transparent text-[16px] sm:text-base text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-400 outline-none pr-2 font-normal ${!user ? "cursor-pointer select-none" : ""
+                }`}
             />
 
             {/* Lock or Send button */}
@@ -160,11 +135,10 @@ export function ChatLanding({
               <button
                 type="submit"
                 disabled={!input.trim()}
-                className={`w-8 h-8 sm:w-9 sm:h-9 min-w-[32px] sm:min-w-[36px] rounded-full flex items-center justify-center shrink-0 transition-all ${
-                  input.trim()
-                    ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 cursor-pointer shadow-sm active:scale-95"
-                    : "bg-neutral-200 dark:bg-neutral-700 text-neutral-400 dark:text-neutral-500 cursor-not-allowed"
-                }`}
+                className={`w-8 h-8 sm:w-9 sm:h-9 min-w-[32px] sm:min-w-[36px] rounded-full flex items-center justify-center shrink-0 transition-all ${input.trim()
+                  ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 cursor-pointer shadow-sm active:scale-95"
+                  : "bg-neutral-200 dark:bg-neutral-700 text-neutral-400 dark:text-neutral-500 cursor-not-allowed"
+                  }`}
                 title="Send message"
               >
                 <ArrowUp className="w-4 h-4 stroke-[2.5]" />
