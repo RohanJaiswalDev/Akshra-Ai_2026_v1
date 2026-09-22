@@ -22,12 +22,14 @@ export interface Message {
   timestamp: string;
   isStreaming?: boolean;
   isError?: boolean;
+  feedback?: "up" | "down";
 }
 
 interface ChatMessagesProps {
   messages: Message[];
   onSendMessage: (text: string) => void;
-  onRegenerate?: () => void;
+  onRegenerate?: (messageId: string) => void;
+  onFeedback?: (messageId: string, feedback: "up" | "down" | null) => void;
   isStreaming?: boolean;
   onStop?: () => void;
   user?: AuthUser | null;
@@ -41,13 +43,17 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   copiedId,
   onCopy,
   onRegenerate,
+  onFeedback,
+  canRegenerate,
   user,
   onOpenLogin,
 }: {
   msg: Message;
   copiedId: string | null;
-  onCopy: (id: string, text: string) => void;
-  onRegenerate?: () => void;
+  onCopy: (id: string, text: string) => Promise<void>;
+  onRegenerate?: (messageId: string) => void;
+  onFeedback?: (messageId: string, feedback: "up" | "down" | null) => void;
+  canRegenerate: boolean;
   user?: AuthUser | null;
   onOpenLogin?: () => void;
 }) {
@@ -92,25 +98,42 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
                 <Copy className="w-3.5 h-3.5" />
               )}
             </button>
-            <button
-              className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 transition cursor-pointer"
-              title="Good response"
-            >
-              <ThumbsUp className="w-3.5 h-3.5" />
-            </button>
-            <button
-              className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 transition cursor-pointer"
-              title="Bad response"
-            >
-              <ThumbsDown className="w-3.5 h-3.5" />
-            </button>
-            {onRegenerate && (
+            {!msg.isError && onFeedback && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onFeedback(msg.id, msg.feedback === "up" ? null : "up")}
+                  aria-pressed={msg.feedback === "up"}
+                  className={`p-1.5 rounded-lg transition cursor-pointer ${msg.feedback === "up"
+                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400"
+                    : "hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+                    }`}
+                  title={msg.feedback === "up" ? "Remove positive feedback" : "Good response"}
+                >
+                  <ThumbsUp className="w-3.5 h-3.5" fill={msg.feedback === "up" ? "currentColor" : "none"} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onFeedback(msg.id, msg.feedback === "down" ? null : "down")}
+                  aria-pressed={msg.feedback === "down"}
+                  className={`p-1.5 rounded-lg transition cursor-pointer ${msg.feedback === "down"
+                    ? "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400"
+                    : "hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200"
+                    }`}
+                  title={msg.feedback === "down" ? "Remove negative feedback" : "Bad response"}
+                >
+                  <ThumbsDown className="w-3.5 h-3.5" fill={msg.feedback === "down" ? "currentColor" : "none"} />
+                </button>
+              </>
+            )}
+            {onRegenerate && canRegenerate && (
               <button
+                type="button"
                 onClick={() => {
                   if (!user) {
                     onOpenLogin?.();
                   } else {
-                    onRegenerate();
+                    onRegenerate(msg.id);
                   }
                 }}
                 className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 transition cursor-pointer"
@@ -130,6 +153,7 @@ export function ChatMessages({
   messages,
   onSendMessage,
   onRegenerate,
+  onFeedback,
   isStreaming = false,
   onStop,
   user,
@@ -205,11 +229,37 @@ export function ChatMessages({
     }
   }, [messages, isStreaming]);
 
-  const handleCopy = useCallback((id: string, text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+  const handleCopy = useCallback(async (id: string, text: string) => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        const copied = document.execCommand("copy");
+        document.body.removeChild(textarea);
+        if (!copied) throw new Error("Copy command was rejected.");
+      }
+
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (error) {
+      console.error("Unable to copy response:", error);
+    }
   }, []);
+
+  let lastAssistantIndex = -1;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index].role === "assistant" && !messages[index].isStreaming) {
+      lastAssistantIndex = index;
+      break;
+    }
+  }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -241,13 +291,15 @@ export function ChatMessages({
           className="w-full h-0 opacity-0 pointer-events-none"
         />
 
-        {messages.map((msg) => (
+        {messages.map((msg, index) => (
           <ChatMessageRow
             key={msg.id}
             msg={msg}
             copiedId={copiedId}
             onCopy={handleCopy}
             onRegenerate={onRegenerate}
+            onFeedback={onFeedback}
+            canRegenerate={index === lastAssistantIndex && !isStreaming}
             user={user}
             onOpenLogin={onOpenLogin}
           />

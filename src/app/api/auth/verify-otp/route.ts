@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { checkOtp, getOrCreateUser } from "@/lib/db-store";
-import { signSessionToken, COOKIE_NAME } from "@/lib/auth";
+import { createSessionCookie } from "@/lib/auth";
 
 export async function POST(req: Request) {
   try {
@@ -29,21 +28,11 @@ export async function POST(req: Request) {
     // Find or create User in MongoDB / store
     const user = await getOrCreateUser(email);
 
-    // Sign session token
-    const token = signSessionToken({
+    // Create a persistent session after a successful OTP verification.
+    await createSessionCookie({
       userId: user.id,
       email: user.email,
       name: user.name,
-    });
-
-    // Set secure HttpOnly cookie
-    const cookieStore = await cookies();
-    cookieStore.set(COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 30 * 24 * 60 * 60, // 30 days
-      path: "/",
     });
 
     return NextResponse.json({

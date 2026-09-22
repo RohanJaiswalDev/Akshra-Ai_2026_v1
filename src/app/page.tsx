@@ -454,15 +454,34 @@ export default function Home() {
     }
   };
 
-  // Handle Regenerate last response
-  const handleRegenerate = () => {
+  // Persist a user's response rating with the local saved conversation.
+  const handleResponseFeedback = (
+    messageId: string,
+    feedback: "up" | "down" | null
+  ) => {
+    const updatedMessages = messages.map((message) =>
+      message.id === messageId ? { ...message, feedback: feedback || undefined } : message
+    );
+    setMessages(updatedMessages);
+
+    if (activeChatId) {
+      const firstPrompt = updatedMessages.find((message) => message.role === "user")?.content || "New Conversation";
+      saveChatToHistory(activeChatId, firstPrompt, updatedMessages);
+    }
+  };
+
+  // Regenerate exactly the latest completed response from its preceding prompt.
+  const handleRegenerate = (responseId: string) => {
     if (!user) {
       setAuthModal({ isOpen: true, mode: "login" });
       return;
     }
     if (messages.length === 0 || isStreaming) return;
+    const responseIndex = messages.findIndex((message) => message.id === responseId);
+    if (responseIndex < 0 || messages[responseIndex].role !== "assistant") return;
+
     let lastUserIndex = -1;
-    for (let index = messages.length - 1; index >= 0; index -= 1) {
+    for (let index = responseIndex - 1; index >= 0; index -= 1) {
       if (messages[index].role === "user") {
         lastUserIndex = index;
         break;
@@ -470,8 +489,7 @@ export default function Home() {
     }
 
     if (lastUserIndex >= 0) {
-      // Resend the last prompt once, with only the preceding conversation as context.
-      // This prevents the old answer and duplicate user prompt from being sent upstream.
+      // Resend the source prompt once, with only preceding messages as context.
       const lastUserMsg = messages[lastUserIndex];
       handleSendMessage(lastUserMsg.content, messages.slice(0, lastUserIndex));
     }
@@ -528,6 +546,7 @@ export default function Home() {
               messages={messages}
               onSendMessage={handleSendMessage}
               onRegenerate={handleRegenerate}
+              onFeedback={handleResponseFeedback}
               isStreaming={isStreaming}
               onStop={handleStop}
               user={user}
