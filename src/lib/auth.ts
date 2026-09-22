@@ -12,7 +12,15 @@ export interface SessionPayload {
 }
 
 export function signSessionToken(payload: SessionPayload): string {
-  return jwt.sign(payload, JWT_SECRET, {
+  // Strip any existing JWT claims (iat, exp, etc.) from previously decoded tokens
+  // to avoid jsonwebtoken throwing "Bad options.expiresIn option the payload already has an exp property"
+  const cleanPayload: SessionPayload = {
+    userId: payload.userId,
+    email: payload.email,
+    name: payload.name,
+  };
+
+  return jwt.sign(cleanPayload, JWT_SECRET, {
     expiresIn: SESSION_MAX_AGE_SECONDS,
   });
 }
@@ -36,14 +44,18 @@ export async function getCurrentUserFromCookie(): Promise<SessionPayload | null>
 /**
  * Creates a persistent, HttpOnly session cookie. Calling this again renews the
  * session, so an active user stays signed in until they explicitly log out.
+ * Sets both maxAge and an explicit expires Date to ensure persistence across
+ * browser reloads, window closures, and process exits.
  */
 export async function createSessionCookie(session: SessionPayload): Promise<void> {
   const cookieStore = await cookies();
+  const expires = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
   cookieStore.set(COOKIE_NAME, signSessionToken(session), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     maxAge: SESSION_MAX_AGE_SECONDS,
+    expires,
     path: "/",
   });
 }

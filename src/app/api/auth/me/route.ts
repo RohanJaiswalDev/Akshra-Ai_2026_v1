@@ -9,10 +9,13 @@ export async function GET() {
       return NextResponse.json({ authenticated: false, user: null });
     }
 
-    // A valid, signed session is the source of truth for authentication. Do
-    // not log a user out merely because MongoDB is unavailable or a serverless
-    // instance restarted and its development fallback memory was cleared.
-    await createSessionCookie(session);
+    // A valid, signed session is the source of truth for authentication.
+    // Renew the persistent session cookie so active users remain logged in indefinitely.
+    try {
+      await createSessionCookie(session);
+    } catch (cookieError) {
+      console.warn("[auth/me] Non-critical cookie renewal warning:", cookieError);
+    }
 
     return NextResponse.json({
       authenticated: true,
@@ -21,7 +24,7 @@ export async function GET() {
         email: session.email,
         name: session.name || session.email.split("@")[0],
       },
-    }, { headers: { "Cache-Control": "no-store" } });
+    }, { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } });
   } catch (error) {
     console.error("[auth/me API error]:", error);
     return NextResponse.json({ authenticated: false, user: null });

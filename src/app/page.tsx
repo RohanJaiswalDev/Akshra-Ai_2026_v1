@@ -14,7 +14,16 @@ export default function Home() {
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [user, setUser] = useState<AuthUser | null>(null);
+  // Immediate client-side session hydration to eliminate reload flicker
+  const [user, setUser] = useState<AuthUser | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const saved = localStorage.getItem("akshra_auth_user");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_MODEL_ID);
@@ -204,7 +213,7 @@ export default function Home() {
     }
   };
 
-  // Check existing auth session on mount
+  // Check existing auth session on mount and synchronize with localStorage
   useEffect(() => {
     const checkSession = async () => {
       try {
@@ -212,27 +221,59 @@ export default function Home() {
         const data = await res.json();
         if (data.authenticated && data.user) {
           setUser(data.user);
+          try {
+            localStorage.setItem("akshra_auth_user", JSON.stringify(data.user));
+          } catch (e) {
+            console.error("Failed to sync user to localStorage:", e);
+          }
         } else {
           setUser(null);
+          try {
+            localStorage.removeItem("akshra_auth_user");
+          } catch (e) {
+            console.error("Failed to remove user from localStorage:", e);
+          }
         }
       } catch (err) {
         console.error("Failed to fetch session:", err);
-        setUser(null);
       } finally {
         setIsAuthLoading(false);
       }
     };
     checkSession();
+
+    // Cross-tab synchronization: keep login/logout state synchronized if changed in another tab
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "akshra_auth_user") {
+        if (e.newValue) {
+          try {
+            setUser(JSON.parse(e.newValue));
+          } catch {
+            setUser(null);
+          }
+        } else {
+          setUser(null);
+        }
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
 
-  // Handle Logout: clear session cookie and reset chat view
+  // Handle Logout: clear session cookie, clear localStorage, and reset chat view
   const handleLogout = async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
-      setUser(null);
-      handleNewChat();
     } catch (err) {
       console.error("Failed to logout:", err);
+    } finally {
+      setUser(null);
+      try {
+        localStorage.removeItem("akshra_auth_user");
+      } catch (e) {
+        console.error(e);
+      }
+      handleNewChat();
     }
   };
 
@@ -565,6 +606,11 @@ export default function Home() {
         onSwitchMode={(mode) => setAuthModal({ isOpen: true, mode })}
         onAuthSuccess={(authenticatedUser) => {
           setUser(authenticatedUser);
+          try {
+            localStorage.setItem("akshra_auth_user", JSON.stringify(authenticatedUser));
+          } catch (e) {
+            console.error("Failed to save user to localStorage:", e);
+          }
           if (pendingPrompt) {
             const promptToSend = pendingPrompt;
             setPendingPrompt(null);
