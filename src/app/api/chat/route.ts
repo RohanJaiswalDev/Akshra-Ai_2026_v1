@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getCurrentUserFromCookie } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -6,6 +7,18 @@ export const maxDuration = 60; // Max execution duration on Vercel Hobby tier fo
 
 export async function POST(req: Request) {
   try {
+    // Strict authentication check: Require genuine logged-in user
+    const session = await getCurrentUserFromCookie();
+    if (!session || !session.userId) {
+      return NextResponse.json(
+        {
+          error:
+            "Authentication required. Please log in or register to chat with Akshra AI.",
+        },
+        { status: 401 }
+      );
+    }
+
     const { messages, model } = await req.json();
 
     const apiKey = process.env.OPENROUTER_API_KEY;

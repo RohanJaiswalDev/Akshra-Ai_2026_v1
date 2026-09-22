@@ -14,6 +14,7 @@ import {
   LogOut,
   User as UserIcon,
   Download,
+  Lock,
 } from "lucide-react";
 import { ThemeSelector } from "./ThemeSelector";
 import { type AuthUser } from "./AuthModals";
@@ -107,7 +108,13 @@ export function Sidebar({
         {/* "New chat" button */}
         <div className="px-3 pt-2 pb-2 shrink-0">
           <button
-            onClick={onNewChat}
+            onClick={() => {
+              if (!user) {
+                onOpenLogin();
+              } else {
+                onNewChat();
+              }
+            }}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-neutral-100 hover:bg-neutral-200/70 dark:bg-[#212121] dark:hover:bg-[#2c2c2c] text-neutral-800 dark:text-neutral-200 text-sm font-medium transition group cursor-pointer shadow-2xs"
           >
             <NewChatIcon className="w-4 h-4 text-neutral-600 dark:text-neutral-400 group-hover:text-neutral-900 dark:group-hover:text-white transition" />
@@ -115,8 +122,29 @@ export function Sidebar({
           </button>
         </div>
 
-        {/* Central Area: Real Chat History */}
-        {isHistoryEnabled ? (
+        {/* Central Area: Real Chat History or Sign-in Prompt */}
+        {!user ? (
+          <div className="flex-1 flex flex-col items-center justify-center px-4 py-6 text-center space-y-3 min-h-0">
+            <div className="w-9 h-9 rounded-full bg-neutral-200/60 dark:bg-neutral-800/80 flex items-center justify-center text-neutral-500 dark:text-neutral-400">
+              <Lock className="w-4 h-4 text-neutral-500 dark:text-neutral-400" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+                Chat History
+              </p>
+              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-relaxed max-w-[200px]">
+                Sign in to save and sync your conversations with Akshra Ai.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onOpenLogin}
+              className="px-4 py-1.5 rounded-lg bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-medium hover:opacity-90 active:scale-95 transition cursor-pointer shadow-2xs"
+            >
+              Sign in
+            </button>
+          </div>
+        ) : isHistoryEnabled ? (
           <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1 min-h-0">
             <div className="px-3 py-1 text-[11px] font-medium text-neutral-400 dark:text-neutral-500 uppercase tracking-wider">
               Recent Chats
@@ -285,7 +313,13 @@ export function Sidebar({
             </button>
 
             <button
-              onClick={onNewChat}
+              onClick={() => {
+                if (!user) {
+                  onOpenLogin();
+                } else {
+                  onNewChat();
+                }
+              }}
               className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-neutral-200/60 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300 transition cursor-pointer"
               title="New chat"
               aria-label="New chat"

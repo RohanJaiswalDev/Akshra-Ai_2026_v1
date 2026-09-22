@@ -15,6 +15,8 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_MODEL_ID);
 
   // Reference to abort ongoing chat stream
@@ -210,19 +212,25 @@ export default function Home() {
         const data = await res.json();
         if (data.authenticated && data.user) {
           setUser(data.user);
+        } else {
+          setUser(null);
         }
       } catch (err) {
         console.error("Failed to fetch session:", err);
+        setUser(null);
+      } finally {
+        setIsAuthLoading(false);
       }
     };
     checkSession();
   }, []);
 
-  // Handle Logout
+  // Handle Logout: clear session cookie and reset chat view
   const handleLogout = async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
       setUser(null);
+      handleNewChat();
     } catch (err) {
       console.error("Failed to logout:", err);
     }
@@ -258,6 +266,13 @@ export default function Home() {
 
   // Send new message to OpenRouter API with real streaming
   const handleSendMessage = async (text: string) => {
+    // Strict authentication gate: Require genuine logged-in user
+    if (!user) {
+      setPendingPrompt(text);
+      setAuthModal({ isOpen: true, mode: "login" });
+      return;
+    }
+
     if (isStreaming) return;
 
     const userMsg: Message = {
@@ -435,6 +450,10 @@ export default function Home() {
 
   // Handle Regenerate last response
   const handleRegenerate = () => {
+    if (!user) {
+      setAuthModal({ isOpen: true, mode: "login" });
+      return;
+    }
     if (messages.length === 0 || isStreaming) return;
     const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
     if (lastUserMsg) {
@@ -487,7 +506,13 @@ export default function Home() {
         {/* Dynamic View: Landing (Hello, Coder.Developer) vs Active Chat Messages */}
         <main className="flex-1 min-h-0 flex flex-col overflow-hidden relative">
           {messages.length === 0 ? (
-            <ChatLanding onSubmit={handleSendMessage} />
+            <ChatLanding
+              onSubmit={handleSendMessage}
+              user={user}
+              isAuthLoading={isAuthLoading}
+              onOpenLogin={() => setAuthModal({ isOpen: true, mode: "login" })}
+              onOpenSignup={() => setAuthModal({ isOpen: true, mode: "signup" })}
+            />
           ) : (
             <ChatMessages
               messages={messages}
@@ -495,6 +520,9 @@ export default function Home() {
               onRegenerate={handleRegenerate}
               isStreaming={isStreaming}
               onStop={handleStop}
+              user={user}
+              onOpenLogin={() => setAuthModal({ isOpen: true, mode: "login" })}
+              onOpenSignup={() => setAuthModal({ isOpen: true, mode: "signup" })}
             />
           )}
         </main>
@@ -506,7 +534,16 @@ export default function Home() {
         mode={authModal.mode}
         onClose={() => setAuthModal({ isOpen: false, mode: "login" })}
         onSwitchMode={(mode) => setAuthModal({ isOpen: true, mode })}
-        onAuthSuccess={(authenticatedUser) => setUser(authenticatedUser)}
+        onAuthSuccess={(authenticatedUser) => {
+          setUser(authenticatedUser);
+          if (pendingPrompt) {
+            const promptToSend = pendingPrompt;
+            setPendingPrompt(null);
+            setTimeout(() => {
+              handleSendMessage(promptToSend);
+            }, 150);
+          }
+        }}
       />
 
       {/* Settings Modal (with model selector, real history toggle & clear history) */}

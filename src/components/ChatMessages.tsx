@@ -9,9 +9,11 @@ import {
   ThumbsDown,
   RotateCcw,
   Square,
+  Lock,
 } from "lucide-react";
 import { AkshraLogo } from "./icons";
 import { MarkdownRenderer } from "./MarkdownRenderer";
+import { type AuthUser } from "./AuthModals";
 
 export interface Message {
   id: string;
@@ -27,6 +29,9 @@ interface ChatMessagesProps {
   onRegenerate?: () => void;
   isStreaming?: boolean;
   onStop?: () => void;
+  user?: AuthUser | null;
+  onOpenLogin?: () => void;
+  onOpenSignup?: () => void;
 }
 
 // Highly optimized memoized single message row
@@ -35,11 +40,15 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   copiedId,
   onCopy,
   onRegenerate,
+  user,
+  onOpenLogin,
 }: {
   msg: Message;
   copiedId: string | null;
   onCopy: (id: string, text: string) => void;
   onRegenerate?: () => void;
+  user?: AuthUser | null;
+  onOpenLogin?: () => void;
 }) {
   const isUser = msg.role === "user";
 
@@ -96,7 +105,13 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
             </button>
             {onRegenerate && (
               <button
-                onClick={onRegenerate}
+                onClick={() => {
+                  if (!user) {
+                    onOpenLogin?.();
+                  } else {
+                    onRegenerate();
+                  }
+                }}
                 className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 transition cursor-pointer"
                 title="Regenerate response"
               >
@@ -116,6 +131,9 @@ export function ChatMessages({
   onRegenerate,
   isStreaming = false,
   onStop,
+  user,
+  onOpenLogin,
+  onOpenSignup,
 }: ChatMessagesProps) {
   const [input, setInput] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -195,6 +213,10 @@ export function ChatMessages({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
+      if (!user) {
+        onOpenLogin?.();
+        return;
+      }
       if (input.trim() && !isStreaming) {
         onSendMessage(input.trim());
         setInput("");
@@ -225,6 +247,8 @@ export function ChatMessages({
             copiedId={copiedId}
             onCopy={handleCopy}
             onRegenerate={onRegenerate}
+            user={user}
+            onOpenLogin={onOpenLogin}
           />
         ))}
 
@@ -249,47 +273,76 @@ export function ChatMessages({
       {/* Floating Bottom Input Bar with Safe Area Support */}
       <div className="absolute bottom-0 left-0 right-0 px-3 sm:px-6 md:px-10 py-2.5 sm:py-3.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-gradient-to-t from-[var(--canvas-bg)] via-[var(--canvas-bg)] to-transparent pt-4 sm:pt-6 z-20 gpu-accelerated">
         <div className="max-w-3xl w-full mx-auto">
-          <div className="relative flex items-center bg-white dark:bg-[#2f2f2f] rounded-full border border-neutral-200/90 dark:border-[#424242] shadow-[0_4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.35)] px-4 sm:px-6 py-2.5 sm:py-3 focus-within:border-neutral-400 dark:focus-within:border-neutral-500 transition">
-            <textarea
-              rows={1}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask Akshra Ai anything..."
-              className="w-full bg-transparent text-[16px] sm:text-sm text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-400 outline-none resize-none max-h-32 pr-2 py-0.5 font-normal"
-            />
+          {!user ? (
+            <div className="relative flex flex-col sm:flex-row items-center justify-between gap-3 bg-white/95 dark:bg-[#252528]/95 backdrop-blur-md rounded-2xl sm:rounded-full border border-neutral-200/90 dark:border-neutral-700 shadow-[0_4px_24px_rgba(0,0,0,0.08)] px-4 sm:px-6 py-3 animate-in fade-in duration-200">
+              <div className="flex items-center gap-2.5 text-xs sm:text-sm text-neutral-700 dark:text-neutral-300 text-center sm:text-left">
+                <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+                <span>Log in or create an account to continue chatting with Akshra Ai.</span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={onOpenLogin}
+                  className="px-4 py-1.5 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-medium hover:opacity-90 active:scale-95 transition cursor-pointer shadow-xs"
+                >
+                  Log in
+                </button>
+                <button
+                  type="button"
+                  onClick={onOpenSignup}
+                  className="px-4 py-1.5 rounded-full border border-neutral-300 dark:border-neutral-700 bg-white/50 dark:bg-transparent text-xs font-medium text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer"
+                >
+                  Sign up
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="relative flex items-center bg-white dark:bg-[#2f2f2f] rounded-full border border-neutral-200/90 dark:border-[#424242] shadow-[0_4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.35)] px-4 sm:px-6 py-2.5 sm:py-3 focus-within:border-neutral-400 dark:focus-within:border-neutral-500 transition">
+              <textarea
+                rows={1}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask Akshra Ai anything..."
+                className="w-full bg-transparent text-[16px] sm:text-sm text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-400 outline-none resize-none max-h-32 pr-2 py-0.5 font-normal"
+              />
 
-            {/* Stop vs Send Icon */}
-            {isStreaming && onStop ? (
-              <button
-                type="button"
-                onClick={onStop}
-                className="w-8 h-8 sm:w-9 sm:h-9 min-w-[32px] sm:min-w-[36px] rounded-full flex items-center justify-center shrink-0 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 cursor-pointer shadow-sm hover:opacity-85 active:scale-95 transition-all"
-                title="Stop generating"
-              >
-                <Square className="w-3.5 h-3.5 fill-current" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  if (input.trim()) {
-                    onSendMessage(input.trim());
-                    setInput("");
-                    setTimeout(() => scrollToBottom(true), 40);
-                  }
-                }}
-                disabled={!input.trim()}
-                className={`w-8 h-8 sm:w-9 sm:h-9 min-w-[32px] sm:min-w-[36px] rounded-full flex items-center justify-center shrink-0 transition-all ${input.trim()
-                  ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 cursor-pointer shadow-sm active:scale-95"
-                  : "bg-neutral-200 dark:bg-neutral-700 text-neutral-400 dark:text-neutral-500 cursor-not-allowed"
-                  }`}
-                title="Send message"
-              >
-                <ArrowUp className="w-4 h-4 stroke-[2.5]" />
-              </button>
-            )}
-          </div>
+              {/* Stop vs Send Icon */}
+              {isStreaming && onStop ? (
+                <button
+                  type="button"
+                  onClick={onStop}
+                  className="w-8 h-8 sm:w-9 sm:h-9 min-w-[32px] sm:min-w-[36px] rounded-full flex items-center justify-center shrink-0 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 cursor-pointer shadow-sm hover:opacity-85 active:scale-95 transition-all"
+                  title="Stop generating"
+                >
+                  <Square className="w-3.5 h-3.5 fill-current" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!user) {
+                      onOpenLogin?.();
+                      return;
+                    }
+                    if (input.trim()) {
+                      onSendMessage(input.trim());
+                      setInput("");
+                      setTimeout(() => scrollToBottom(true), 40);
+                    }
+                  }}
+                  disabled={!input.trim()}
+                  className={`w-8 h-8 sm:w-9 sm:h-9 min-w-[32px] sm:min-w-[36px] rounded-full flex items-center justify-center shrink-0 transition-all ${input.trim()
+                    ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 cursor-pointer shadow-sm active:scale-95"
+                    : "bg-neutral-200 dark:bg-neutral-700 text-neutral-400 dark:text-neutral-500 cursor-not-allowed"
+                    }`}
+                  title="Send message"
+                >
+                  <ArrowUp className="w-4 h-4 stroke-[2.5]" />
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="text-center mt-1.5 sm:mt-2 text-[10px] sm:text-[11px] text-neutral-400 dark:text-neutral-500">
             Akshra Ai can make mistakes. Verify important info.
