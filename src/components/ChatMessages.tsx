@@ -398,7 +398,7 @@ export function ChatMessages({
           )}
 
           <div className="text-center mt-1.5 sm:mt-2 text-[10px] sm:text-[11px] text-neutral-400 dark:text-neutral-500">
-            Akshra Ai can make mistakes. Verify important info.
+            Akshra Ai - Designed & Developed by <a className="text-blue-600 dark:text-blue-400 hover:underline font-medium" href="https://rohanjaiswal.co.in" target="_blank" rel="noopener noreferrer">Rohan Jaiswal</a>
           </div>
         </div>
       </div>
