@@ -207,18 +207,55 @@ export async function POST(req: Request) {
       // Memory failure must never block chat
     }
 
-    // Phase 6: Voice Personality tone adjustment
+    // Phase 6: Voice & Persona tone adjustment
     const personality = body.personality || "natural";
-    let personalityPrompt = "";
-    if (personality === "professional") {
-      personalityPrompt = " Adopt an articulate, executive, professional demeanor.";
-    } else if (personality === "friendly") {
-      personalityPrompt = " Adopt a warm, cheerful, enthusiastic, and approachable tone.";
-    } else if (personality === "teacher") {
-      personalityPrompt = " Adopt an encouraging, patient, clear pedagogical mentor tone.";
-    } else if (personality === "developer") {
-      personalityPrompt = " Adopt a sharp, concise, pragmatic senior software engineer mindset.";
-    }
+    const personalityVoiceConfigs: Record<
+      string,
+      { title: string; voicePersona: string; textPersona: string }
+    > = {
+      natural: {
+        title: "natural conversational voice assistant",
+        voicePersona:
+          "Speak in a balanced, natural, articulate, and relaxed conversational cadence, like an intelligent conversational partner.",
+        textPersona:
+          "Provide balanced, helpful, clear, and well-structured answers.",
+      },
+      professional: {
+        title: "executive AI advisor and consultant",
+        voicePersona:
+          "Maintain an articulate, polished, executive demeanor. Be crisp, objective, and structured. Avoid casual slang or excessive filler.",
+        textPersona:
+          "Deliver executive-grade, structured, and polished answers with clear professional headings.",
+      },
+      friendly: {
+        title: "warm, upbeat, and cheerful AI companion",
+        voicePersona:
+          "Speak with genuine warmth, positive energy, enthusiasm, and empathy. Be encouraging and delightfully approachable.",
+        textPersona:
+          "Be warm, encouraging, positive, and supportive in your explanations.",
+      },
+      teacher: {
+        title: "patient pedagogical mentor and educator",
+        voicePersona:
+          "Explain concepts with crystal clarity, intuitive analogies, and encouraging patience. Break ideas down step by step.",
+        textPersona:
+          "Act as a patient educator. Clarify the 'why' behind concepts and provide intuitive step-by-step guidance.",
+      },
+      developer: {
+        title: "senior software architect and engineering lead",
+        voicePersona:
+          "Be direct, technically precise, pragmatic, and solution-focused. Zero corporate fluff, prioritize engineering clarity.",
+        textPersona:
+          "Act as a senior software architect. Provide production-ready, typed, and well-commented code in fenced Markdown blocks.",
+      },
+    };
+
+    const selectedPersona =
+      personalityVoiceConfigs[personality] || personalityVoiceConfigs.natural;
+
+    const basePrompt = isVoiceMode
+      ? `You are Akshra Ai, a ${selectedPersona.title}. You are speaking directly aloud to the user right now in real time. ${selectedPersona.voicePersona} Answer conversationally in 1 to 2 short, crisp spoken sentences unless the user explicitly requests more detail. Crucial voice formatting rule: Never use markdown formatting, asterisks, bolding, bullet points, numbered lists, emojis, URLs, or code blocks, as your text is converted straight into spoken voice output.`
+      : `You are Akshra Ai, an accurate AI assistant and ${selectedPersona.title}. ${selectedPersona.textPersona} Format code in fenced Markdown blocks with the appropriate language identifier.`;
 
     // Phase 7: Deep Thinking Mode System Instructions
     let thinkingPrompt = "";
@@ -235,10 +272,6 @@ In your thinking:
 Take the necessary intellectual time and depth — do not truncate or summarize prematurely.
 After closing the </think> tag, output your polished, complete, and definitive response.`;
     }
-
-    const basePrompt = isVoiceMode
-      ? `You are Akshra Ai, a real-time conversational voice assistant. You are speaking directly aloud to the user right now.${personalityPrompt} Respond in a warm, lively, concise, and natural human conversational tone. Answer in 1 to 2 short sentences unless the user explicitly asks for more detail. Never use markdown formatting, asterisks, bullet points, numbered lists, emojis, URLs, or code blocks, as your answer is converted straight to human speech.`
-      : "You are Akshra Ai, an accurate, helpful AI assistant and senior software engineer. Give clear, well-structured answers. Format code in fenced Markdown blocks with the appropriate language identifier.";
 
     const systemPrompt = `${basePrompt}${memoryGuidance}${webSearchPrompt}${thinkingPrompt}`;
 
