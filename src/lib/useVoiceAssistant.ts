@@ -272,11 +272,6 @@ export function calculateSemanticTurnDelay(
   }
 }
 
-/**
- * 🌟 Acoustic Echo Detection — prevents TTS playback from triggering false barge-in.
- * Compares the user's recognized speech against what Akshra is currently saying / has queued.
- * Returns true if the recognized text is likely echo rather than genuine user speech.
- */
 function isLikelyEcho(
   recognizedText: string,
   currentChunk: string,
@@ -288,26 +283,39 @@ function isLikelyEcho(
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, "")
       .trim();
+
   const recognized = norm(recognizedText);
-  if (!recognized || recognized.length < 3) return true; // Too short / empty = noise
+  if (!recognized || recognized.length < 3) return true; // Pure noise / empty
 
-  // Build the full text corpus Akshra is speaking or about to speak
-  const akshraSpeech = norm(
-    [...spokenChunks, currentChunk, ...pendingQueue.map((q) => q.text)].join(" ")
+  const recentChunks = spokenChunks.slice(-2);
+  const recentSpeech = norm(
+    [...recentChunks, currentChunk, ...pendingQueue.slice(0, 2).map((q) => q.text)].join(" ")
   );
-  if (!akshraSpeech) return false; // Nothing is playing, so it's the user
+  if (!recentSpeech) return false; // Nothing is playing → definitely the user
 
-  // Direct substring containment
-  if (akshraSpeech.includes(recognized)) return true;
-
-  // Word-level overlap: if ≥60% of recognized words appear in what Akshra said, it's echo
   const recWords = recognized.split(/\s+/).filter((w) => w.length > 2);
-  if (recWords.length === 0) return true;
-  let matchCount = 0;
-  for (const w of recWords) {
-    if (akshraSpeech.includes(w)) matchCount++;
+  if (recWords.length === 0) return true; // No meaningful words → noise
+
+  const aksharaWordSet = new Set(
+    recentSpeech.split(/\s+/).filter((w) => w.length > 2)
+  );
+  const hasNovelWord = recWords.some((w) => !aksharaWordSet.has(w));
+
+  if (hasNovelWord) {
+    // User said something Akshra did NOT say → genuine user speech
+    return false;
   }
-  return matchCount / recWords.length >= 0.6;
+
+  const currentNorm = norm(currentChunk);
+  if (currentNorm && currentNorm.includes(recognized)) {
+    return true;
+  }
+
+  if (recWords.length <= 2) {
+    return true;
+  }
+
+  return false;
 }
 
 export function useVoiceAssistant({
