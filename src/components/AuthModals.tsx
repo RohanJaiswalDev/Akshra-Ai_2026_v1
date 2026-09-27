@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, ArrowLeft, Loader2, CheckCircle2, AlertCircle, Phone, User as UserIcon, Mail } from "lucide-react";
+import { X, ArrowLeft, Loader2, CheckCircle2, AlertCircle, User as UserIcon, Mail } from "lucide-react";
 import { AkshraLogo } from "./icons";
+import "react-phone-number-input/style.css";
+import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 
 export interface AuthUser {
   id: string;
@@ -31,7 +33,7 @@ export function AuthModal({
   const [step, setStep] = useState<"email" | "otp">("email");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [mobileNumber, setMobileNumber] = useState("");
+  const [mobileNumber, setMobileNumber] = useState<string | undefined>("");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
@@ -83,13 +85,12 @@ export function AuthModal({
         setError("Please enter your last name.");
         return;
       }
-      if (!mobileNumber.trim()) {
+      if (!mobileNumber || !mobileNumber.trim()) {
         setError("Please enter your mobile number.");
         return;
       }
-      const digits = mobileNumber.replace(/\D/g, "");
-      if (digits.length < 7 || digits.length > 15) {
-        setError("Please enter a valid mobile number (7 to 15 digits).");
+      if (!isValidPhoneNumber(mobileNumber)) {
+        setError("Please enter a valid mobile number for the selected country.");
         return;
       }
     }
@@ -146,7 +147,7 @@ export function AuthModal({
       if (mode === "signup") {
         payload.firstName = firstName.trim();
         payload.lastName = lastName.trim();
-        payload.mobileNumber = mobileNumber.trim();
+        payload.mobileNumber = mobileNumber?.trim() || "";
       }
 
       const res = await fetch("/api/auth/verify-otp", {
@@ -289,22 +290,19 @@ export function AuthModal({
                   </div>
                 </div>
 
-                {/* Mobile Number */}
+                {/* Mobile Number with Country Code (react-phone-number-input) */}
                 <div>
                   <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                     Mobile Number <span className="text-red-500">*</span>
                   </label>
-                  <div className="relative">
-                    <input
-                      type="tel"
-                      inputMode="tel"
-                      required
+                  <div className="akshra-phone-container">
+                    <PhoneInput
+                      international
+                      defaultCountry="IN"
                       value={mobileNumber}
-                      onChange={(e) => setMobileNumber(e.target.value)}
-                      placeholder="+1 (555) 000-0000"
-                      className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-[#282828] text-neutral-900 dark:text-white placeholder-neutral-400 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 dark:focus:ring-white transition"
+                      onChange={setMobileNumber}
+                      placeholder="Select country and enter number"
                     />
-                    <Phone className="w-4 h-4 text-neutral-400 absolute left-3 top-3 pointer-events-none" />
                   </div>
                 </div>
 

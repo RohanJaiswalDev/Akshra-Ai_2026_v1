@@ -93,3 +93,66 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(120, 120, 120, 0.45);
 }
+
+/* react-phone-number-input integration */
+.akshra-phone-container {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.75rem;
+  border: 1px solid #d4d4d4;
+  background-color: #f9f9f9;
+  transition: all 0.15s ease-in-out;
+}
+
+.dark .akshra-phone-container {
+  background-color: #282828;
+  border-color: #404040;
+}
+
+.akshra-phone-container:focus-within {
+  outline: none;
+  box-shadow: 0 0 0 2px #000000;
+}
+
+.dark .akshra-phone-container:focus-within {
+  box-shadow: 0 0 0 2px #ffffff;
+}
+
+.akshra-phone-container .PhoneInput {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.akshra-phone-container .PhoneInputInput {
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: inherit;
+  width: 100%;
+  padding-left: 0.25rem;
+}
+
+.akshra-phone-container .PhoneInputInput::placeholder {
+  color: #a3a3a3;
+}
+
+.akshra-phone-container .PhoneInputCountry {
+  margin-right: 0.6rem;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.akshra-phone-container .PhoneInputCountrySelect {
+  cursor: pointer;
+}
+
+.dark .akshra-phone-container .PhoneInputCountrySelect option {
+  background-color: #1e1e1e;
+  color: #ffffff;
+}
