@@ -272,6 +272,44 @@ export function calculateSemanticTurnDelay(
   }
 }
 
+/**
+ * 🌟 Acoustic Echo Detection — prevents TTS playback from triggering false barge-in.
+ * Compares the user's recognized speech against what Akshra is currently saying / has queued.
+ * Returns true if the recognized text is likely echo rather than genuine user speech.
+ */
+function isLikelyEcho(
+  recognizedText: string,
+  currentChunk: string,
+  spokenChunks: string[],
+  pendingQueue: SpeechQueueItem[]
+): boolean {
+  const norm = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, "")
+      .trim();
+  const recognized = norm(recognizedText);
+  if (!recognized || recognized.length < 3) return true; // Too short / empty = noise
+
+  // Build the full text corpus Akshra is speaking or about to speak
+  const akshraSpeech = norm(
+    [...spokenChunks, currentChunk, ...pendingQueue.map((q) => q.text)].join(" ")
+  );
+  if (!akshraSpeech) return false; // Nothing is playing, so it's the user
+
+  // Direct substring containment
+  if (akshraSpeech.includes(recognized)) return true;
+
+  // Word-level overlap: if ≥60% of recognized words appear in what Akshra said, it's echo
+  const recWords = recognized.split(/\s+/).filter((w) => w.length > 2);
+  if (recWords.length === 0) return true;
+  let matchCount = 0;
+  for (const w of recWords) {
+    if (akshraSpeech.includes(w)) matchCount++;
+  }
+  return matchCount / recWords.length >= 0.6;
+}
+
 export function useVoiceAssistant({
   model,
   personality = "natural",
@@ -343,6 +381,8 @@ export function useVoiceAssistant({
   const processSpeechQueueRef = useRef<() => void>(() => undefined);
   const restartListeningRef = useRef<() => void>(() => undefined);
   const sendToAIRef = useRef<(text: string) => void>(() => undefined);
+  const interruptRef = useRef<() => void>(() => undefined);
+  const ensureRecognitionActiveRef = useRef<() => void>(() => undefined);
 
   const updateStatus = useCallback((nextStatus: VoiceAssistantStatus) => {
     statusRef.current = nextStatus;
@@ -418,7 +458,13 @@ export function useVoiceAssistant({
 
     isSpeakingQueueRef.current = true;
     updateStatus("speaking");
-    stopRecognition();
+
+    // 🌟 Phase 1 Architecture: Keep microphone OBSERVABLE while TTS plays.
+    // Do NOT stop recognition. Instead, ensure it stays running so the user
+    // can barge-in by simply speaking.
+    // The recognition.onresult handler will detect genuine user speech vs echo
+    // and trigger interrupt() when appropriate.
+    ensureRecognitionActiveRef.current();
 
     const utterance = new SpeechSynthesisUtterance(next.text);
     if (selectedVoice) utterance.voice = selectedVoice;
@@ -489,7 +535,30 @@ export function useVoiceAssistant({
     } else {
       window.speechSynthesis.speak(utterance);
     }
-  }, [clearWatchdog, finishAssistantTurn, selectedVoice, stopRecognition, updateStatus]);
+  }, [clearWatchdog, finishAssistantTurn, selectedVoice, updateStatus]);
+
+  /**
+   * 🌟 Ensures SpeechRecognition remains active even during TTS playback.
+   * Unlike restartListening, this does NOT change status or clear transcript —
+   * it purely keeps the microphone observable so barge-in works.
+   */
+  const ensureRecognitionActive = useCallback(() => {
+    if (
+      !isMountedRef.current ||
+      !sessionActiveRef.current ||
+      isMicMutedRef.current ||
+      !recognitionRef.current ||
+      isRecognitionRunningRef.current
+    ) {
+      return;
+    }
+    try {
+      recognitionRef.current.start();
+      isRecognitionRunningRef.current = true;
+    } catch {
+      /* browser still transitioning */
+    }
+  }, []);
 
   const restartListening = useCallback(() => {
     if (
@@ -762,11 +831,6 @@ export function useVoiceAssistant({
     recognition.onresult = (event) => {
       if (!sessionActiveRef.current || isMicMutedRef.current) return;
 
-      // 🌟 True Barge-in: if the assistant is speaking and the user speaks, interrupt immediately!
-      if (statusRef.current === "speaking" || isSpeakingQueueRef.current) {
-        interrupt();
-      }
-
       let transcript = "";
       let hasFinalResult = false;
       for (let index = 0; index < event.results.length; index += 1) {
@@ -775,6 +839,50 @@ export function useVoiceAssistant({
       }
       transcript = transcript.trim();
       if (!transcript) return;
+
+      /**
+       * 🌟 Phase 1: Microphone stays observable during TTS.
+       * While Akshra is speaking, we receive recognition results continuously.
+       * We must distinguish genuine user speech from acoustic echo of TTS playback.
+       *
+       * Pipeline:
+       *   Microphone → SpeechRecognition (always on)
+       *                 ↓
+       *   [speaking?] → echo filter → genuine? → interrupt() → continue listening
+       *                              → echo?   → ignore, keep listening
+       *   [listening?] → normal turn detection → sendToAI
+       */
+      if (statusRef.current === "speaking" || isSpeakingQueueRef.current) {
+        // ── Echo Filter ──
+        // Check if what the mic picked up is just Akshra's own voice bouncing back
+        const echo = isLikelyEcho(
+          transcript,
+          currentChunkTextRef.current,
+          spokenChunksRef.current,
+          speechQueueRef.current
+        );
+
+        if (!echo) {
+          // ── Genuine user speech detected during TTS playback ──
+          // Require at least 1 meaningful word (>2 chars) to avoid noise triggers
+          const meaningfulWords = transcript
+            .split(/\s+/)
+            .filter((w) => w.replace(/[^a-zA-Z0-9]/g, "").length > 2);
+          if (meaningfulWords.length >= 1) {
+            // Barge-in! Stop Akshra, reconcile context, hand mic back to user
+            interruptRef.current();
+            // After interrupt, status is back to "listening" — the transcript we just
+            // captured IS the start of the user's new turn, so feed it into the turn
+            // detection pipeline below (fall through, don't return).
+          } else {
+            return; // Single short grunt / noise — not enough to interrupt
+          }
+        } else {
+          return; // Echo — swallow it silently
+        }
+      }
+
+      // ── Normal listening pipeline ──
 
       // Modulate speech visual energy according to vocal activity
       const lengthDelta = Math.abs(transcript.length - lastTranscriptLengthRef.current);
@@ -799,13 +907,13 @@ export function useVoiceAssistant({
     recognition.onerror = (event) => {
       if (event.error === "aborted" || event.error === "no-speech") {
         isRecognitionRunningRef.current = false;
-        if (
-          sessionActiveRef.current &&
-          statusRef.current === "listening" &&
-          !isMicMutedRef.current &&
-          !isSpeakingQueueRef.current
-        ) {
-          window.setTimeout(() => restartListeningRef.current(), isMobile ? 180 : 300);
+        if (sessionActiveRef.current && !isMicMutedRef.current) {
+          // Re-arm the mic whether we're listening OR speaking (Phase 1)
+          if (isSpeakingQueueRef.current || statusRef.current === "speaking") {
+            window.setTimeout(() => ensureRecognitionActiveRef.current(), isMobile ? 180 : 300);
+          } else if (statusRef.current === "listening") {
+            window.setTimeout(() => restartListeningRef.current(), isMobile ? 180 : 300);
+          }
         }
         return;
       }
@@ -817,27 +925,37 @@ export function useVoiceAssistant({
         updateStatus("error");
       } else if (event.error === "network") {
         isRecognitionRunningRef.current = false;
-        if (sessionActiveRef.current && statusRef.current === "listening") {
-          window.setTimeout(() => restartListeningRef.current(), 800);
+        if (sessionActiveRef.current) {
+          const delay = 800;
+          if (isSpeakingQueueRef.current || statusRef.current === "speaking") {
+            window.setTimeout(() => ensureRecognitionActiveRef.current(), delay);
+          } else if (statusRef.current === "listening") {
+            window.setTimeout(() => restartListeningRef.current(), delay);
+          }
         }
       }
     };
 
+    /**
+     * 🌟 Phase 1: recognition.onend keeps mic observable across ALL states.
+     * On mobile (continuous=false), recognition ends after every final result.
+     * We must re-arm it immediately — even during "speaking" — so barge-in works.
+     */
     recognition.onend = () => {
       isRecognitionRunningRef.current = false;
-      if (
-        sessionActiveRef.current &&
-        statusRef.current === "listening" &&
-        !isMicMutedRef.current &&
-        !isSpeakingQueueRef.current
-      ) {
+      if (!sessionActiveRef.current || isMicMutedRef.current) return;
+
+      if (isSpeakingQueueRef.current || statusRef.current === "speaking" || statusRef.current === "thinking") {
+        // Re-arm silently during TTS / thinking — don't change status
+        window.setTimeout(() => ensureRecognitionActiveRef.current(), isMobile ? 120 : 180);
+      } else if (statusRef.current === "listening") {
         window.setTimeout(() => restartListeningRef.current(), isMobile ? 120 : 180);
       }
     };
 
     recognitionRef.current = recognition;
     return true;
-  }, [clearSilenceTimer, interrupt, updateStatus]);
+  }, [clearSilenceTimer, updateStatus]);
 
   const stopSession = useCallback(() => {
     sessionGenerationRef.current += 1;
@@ -972,6 +1090,14 @@ export function useVoiceAssistant({
   useEffect(() => {
     sendToAIRef.current = sendToAI;
   }, [sendToAI]);
+
+  useEffect(() => {
+    interruptRef.current = interrupt;
+  }, [interrupt]);
+
+  useEffect(() => {
+    ensureRecognitionActiveRef.current = ensureRecognitionActive;
+  }, [ensureRecognitionActive]);
 
   useEffect(() => {
     isMountedRef.current = true;
