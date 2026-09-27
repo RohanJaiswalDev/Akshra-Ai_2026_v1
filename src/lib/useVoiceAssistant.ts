@@ -34,6 +34,7 @@ interface SpeechRecognitionResult {
 }
 interface SpeechRecognitionEvent {
   results: { length: number;[index: number]: SpeechRecognitionResult };
+  resultIndex?: number;
 }
 interface SpeechRecognitionErrorEvent {
   error: string;
@@ -272,51 +273,79 @@ export function calculateSemanticTurnDelay(
   }
 }
 
+function normalizeSpeechText(text: string): string {
+  return text
+    .normalize("NFKC")
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getMeaningfulSpeechWords(text: string): string[] {
+  return normalizeSpeechText(text)
+    .split(" ")
+    .filter((word) => word.length > 1 && /[\p{L}\p{N}]/u.test(word));
+}
+
 function isLikelyEcho(
   recognizedText: string,
   currentChunk: string,
-  spokenChunks: string[],
-  pendingQueue: SpeechQueueItem[]
+  spokenChunks: string[]
 ): boolean {
-  const norm = (s: string) =>
-    s
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, "")
-      .trim();
-
-  const recognized = norm(recognizedText);
-  if (!recognized || recognized.length < 3) return true; // Pure noise / empty
+  const recognized = normalizeSpeechText(recognizedText);
+  if (!recognized) return true;
 
   const recentChunks = spokenChunks.slice(-2);
-  const recentSpeech = norm(
-    [...recentChunks, currentChunk, ...pendingQueue.slice(0, 2).map((q) => q.text)].join(" ")
+  const recentSpeech = normalizeSpeechText(
+    [...recentChunks, currentChunk].join(" ")
   );
-  if (!recentSpeech) return false; // Nothing is playing → definitely the user
 
-  const recWords = recognized.split(/\s+/).filter((w) => w.length > 2);
-  if (recWords.length === 0) return true; // No meaningful words → noise
+  if (!recentSpeech) return false;
 
-  const aksharaWordSet = new Set(
-    recentSpeech.split(/\s+/).filter((w) => w.length > 2)
-  );
-  const hasNovelWord = recWords.some((w) => !aksharaWordSet.has(w));
+  const recWords = getMeaningfulSpeechWords(recognized);
+  const aksharaWords = getMeaningfulSpeechWords(recentSpeech);
 
-  if (hasNovelWord) {
-    // User said something Akshra did NOT say → genuine user speech
-    return false;
-  }
+  if (recWords.length === 0) return true;
+  if (aksharaWords.length === 0) return false;
 
-  const currentNorm = norm(currentChunk);
+  const currentNorm = normalizeSpeechText(currentChunk);
+
   if (currentNorm && currentNorm.includes(recognized)) {
     return true;
   }
 
-  if (recWords.length <= 2) {
-    return true;
+  const maxStart = aksharaWords.length - recWords.length;
+  if (recWords.length >= 2 && maxStart >= 0) {
+    for (let startIndex = 0; startIndex <= maxStart; startIndex += 1) {
+      let matches = true;
+      for (let offset = 0; offset < recWords.length; offset += 1) {
+        if (aksharaWords[startIndex + offset] !== recWords[offset]) {
+          matches = false;
+          break;
+        }
+      }
+      if (matches) return true;
+    }
   }
 
-  return false;
+  // Conservative overlap fallback.
+  const aksharaWordSet = new Set(aksharaWords);
+  let matchedWords = 0;
+  for (const word of recWords) {
+    if (aksharaWordSet.has(word)) matchedWords += 1;
+  }
+
+  const overlapRatio = matchedWords / recWords.length;
+
+  // Very short acknowledgements are especially prone to being echoed.
+  if (recWords.length <= 2) {
+    return overlapRatio >= 1;
+  }
+
+  return overlapRatio >= 0.9;
 }
+
 
 export function useVoiceAssistant({
   model,
@@ -363,6 +392,9 @@ export function useVoiceAssistant({
   const recognitionRef = useRef<ISpeechRecognition | null>(null);
   const isRecognitionRunningRef = useRef(false);
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const recognitionSegmentsRef = useRef<string[]>([]);
+  const recognitionTurnPrefixRef = useRef("");
   const abortControllerRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
   const sessionGenerationRef = useRef(0);
@@ -409,6 +441,46 @@ export function useVoiceAssistant({
     }
   }, []);
 
+  const resetRecognitionTurnBuffers = useCallback(() => {
+    recognitionSegmentsRef.current = [];
+    recognitionTurnPrefixRef.current = "";
+    latestTranscriptRef.current = "";
+    lastTranscriptLengthRef.current = 0;
+    lastTranscriptChangeTimeRef.current = 0;
+  }, []);
+
+  const preserveCurrentRecognitionWindow = useCallback(() => {
+    const windowText = recognitionSegmentsRef.current
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+
+    if (windowText) {
+      const prefix = recognitionTurnPrefixRef.current.trim();
+      recognitionTurnPrefixRef.current = prefix
+        ? `${prefix} ${windowText}`
+        : windowText;
+    }
+
+    recognitionSegmentsRef.current = [];
+  }, []);
+
+  const clearRecognitionWindow = useCallback(() => {
+    recognitionSegmentsRef.current = [];
+  }, []);
+
+  const getCurrentRecognitionTranscript = useCallback(() => {
+    const currentWindow = recognitionSegmentsRef.current
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    const prefix = recognitionTurnPrefixRef.current.trim();
+
+    if (!prefix) return currentWindow;
+    if (!currentWindow) return prefix;
+    return `${prefix} ${currentWindow}`.trim();
+  }, []);
+
   const stopRecognition = useCallback(() => {
     if (!recognitionRef.current || !isRecognitionRunningRef.current) return;
     try {
@@ -416,7 +488,6 @@ export function useVoiceAssistant({
     } catch {
       /* browser already stopping */
     }
-    isRecognitionRunningRef.current = false;
   }, []);
 
   const finishAssistantTurn = useCallback((requestId: number) => {
@@ -467,11 +538,6 @@ export function useVoiceAssistant({
     isSpeakingQueueRef.current = true;
     updateStatus("speaking");
 
-    // 🌟 Phase 1 Architecture: Keep microphone OBSERVABLE while TTS plays.
-    // Do NOT stop recognition. Instead, ensure it stays running so the user
-    // can barge-in by simply speaking.
-    // The recognition.onresult handler will detect genuine user speech vs echo
-    // and trigger interrupt() when appropriate.
     ensureRecognitionActiveRef.current();
 
     const utterance = new SpeechSynthesisUtterance(next.text);
@@ -482,9 +548,8 @@ export function useVoiceAssistant({
     currentChunkCharIndexRef.current = 0;
     speechStartTimeRef.current = performance.now();
 
-    // Word boundary tracking for exact audio position reconciliation & visualizer sync
     utterance.onboundary = (event) => {
-      if (event.name === "word" || typeof event.charIndex === "number") {
+      if (event.name === "word") {
         currentChunkCharIndexRef.current = Math.max(
           currentChunkCharIndexRef.current,
           event.charIndex + (event.charLength || 4)
@@ -516,9 +581,14 @@ export function useVoiceAssistant({
     utterance.onend = advance;
     utterance.onerror = advance;
 
-    // Mobile watchdog: if mobile browser silently drops onend, advance queue automatically
+    // ✅ FIX: Watchdog now scales inversely with speechRate. Slow voices take
+    // proportionally longer, so a fixed budget could cut off legitimate chunks.
     const wordCount = next.text.split(/\s+/).length;
-    const maxSpeechDurationMs = Math.max(2200, wordCount * 550 + 2000);
+    const effectiveRate = speechRateRef.current || 1.05;
+    const maxSpeechDurationMs = Math.max(
+      2500,
+      (wordCount * 550) / effectiveRate + 2500
+    );
     clearWatchdog();
     watchdogTimerRef.current = setTimeout(() => {
       if (isSpeakingQueueRef.current && activeUtteranceRef.current === utterance) {
@@ -545,11 +615,6 @@ export function useVoiceAssistant({
     }
   }, [clearWatchdog, finishAssistantTurn, selectedVoice, updateStatus]);
 
-  /**
-   * 🌟 Ensures SpeechRecognition remains active even during TTS playback.
-   * Unlike restartListening, this does NOT change status or clear transcript —
-   * it purely keeps the microphone observable so barge-in works.
-   */
   const ensureRecognitionActive = useCallback(() => {
     if (
       !isMountedRef.current ||
@@ -568,18 +633,20 @@ export function useVoiceAssistant({
     }
   }, []);
 
+
   const restartListening = useCallback(() => {
     if (
       !isMountedRef.current ||
       !sessionActiveRef.current ||
       isMicMutedRef.current ||
       statusRef.current === "error" ||
+      statusRef.current === "thinking" ||
       isSpeakingQueueRef.current
     ) {
       return;
     }
     clearSilenceTimer();
-    latestTranscriptRef.current = "";
+    resetRecognitionTurnBuffers();
     setUserTranscript("");
     updateStatus("listening");
 
@@ -590,7 +657,7 @@ export function useVoiceAssistant({
     } catch {
       /* the browser is transitioning from onend */
     }
-  }, [clearSilenceTimer, updateStatus]);
+  }, [clearSilenceTimer, resetRecognitionTurnBuffers, updateStatus]);
 
   const cancelCurrentResponse = useCallback(() => {
     clearWatchdog();
@@ -609,11 +676,7 @@ export function useVoiceAssistant({
     }
   }, [clearWatchdog]);
 
-  /**
-   * 🌟 True Barge-in Interruption & Audio Context Reconciliation
-   * Slices the assistant's response to EXACTLY what the user actually heard so far.
-   * Reconciles conversation history to prevent hallucinating unspoken context.
-   */
+
   const interrupt = useCallback(() => {
     // 1. Calculate what text was actually voiced aloud
     let heardText = spokenChunksRef.current.join(" ").trim();
@@ -650,13 +713,18 @@ export function useVoiceAssistant({
 
     // 3. Reset pipeline
     cancelCurrentResponse();
+    resetRecognitionTurnBuffers();
     spokenChunksRef.current = [];
     currentChunkTextRef.current = "";
     currentChunkCharIndexRef.current = 0;
-    setAssistantTranscript(heardText ? `${heardText}...` : "");
+
+    if (heardText) {
+      setAssistantTranscript(`${heardText}...`);
+    }
+
     unlockAudioAndSpeech();
     restartListeningRef.current();
-  }, [cancelCurrentResponse]);
+  }, [cancelCurrentResponse, resetRecognitionTurnBuffers]);
 
   const enqueueSpeech = useCallback((requestId: number, text: string) => {
     const cleaned = cleanTextForSpeech(text);
@@ -673,6 +741,7 @@ export function useVoiceAssistant({
       clearSilenceTimer();
       stopRecognition();
       cancelCurrentResponse();
+      resetRecognitionTurnBuffers();
 
       const requestId = requestIdRef.current + 1;
       requestIdRef.current = requestId;
@@ -809,6 +878,7 @@ export function useVoiceAssistant({
       clearSilenceTimer,
       enqueueSpeech,
       finishAssistantTurn,
+      resetRecognitionTurnBuffers,
       stopRecognition,
       updateStatus,
     ]
@@ -839,73 +909,85 @@ export function useVoiceAssistant({
     recognition.onresult = (event) => {
       if (!sessionActiveRef.current || isMicMutedRef.current) return;
 
-      let transcript = "";
-      let hasFinalResult = false;
-      for (let index = 0; index < event.results.length; index += 1) {
-        transcript += event.results[index][0].transcript;
-        hasFinalResult ||= event.results[index].isFinal;
+      const resultCount = event.results.length;
+      const startIndex = Math.max(
+        0,
+        Math.min(
+          typeof event.resultIndex === "number" ? event.resultIndex : 0,
+          resultCount
+        )
+      );
+
+      for (let index = startIndex; index < resultCount; index += 1) {
+        const result = event.results[index];
+        if (!result?.[0]) continue;
+        recognitionSegmentsRef.current[index] = result[0].transcript.trim();
       }
-      transcript = transcript.trim();
+
+      // Drop stale slots if the browser reports a shorter result list.
+      recognitionSegmentsRef.current.length = resultCount;
+
+      const transcript = getCurrentRecognitionTranscript();
       if (!transcript) return;
 
-      /**
-       * 🌟 Phase 1: Microphone stays observable during TTS.
-       * While Akshra is speaking, we receive recognition results continuously.
-       * We must distinguish genuine user speech from acoustic echo of TTS playback.
-       *
-       * Pipeline:
-       *   Microphone → SpeechRecognition (always on)
-       *                 ↓
-       *   [speaking?] → echo filter → genuine? → interrupt() → continue listening
-       *                              → echo?   → ignore, keep listening
-       *   [listening?] → normal turn detection → sendToAI
-       */
-      if (statusRef.current === "speaking" || isSpeakingQueueRef.current) {
-        // ── Echo Filter ──
-        // Check if what the mic picked up is just Akshra's own voice bouncing back
-        const echo = isLikelyEcho(
-          transcript,
-          currentChunkTextRef.current,
-          spokenChunksRef.current,
-          speechQueueRef.current
-        );
+      let hasFinalResult = false;
+      for (let index = startIndex; index < resultCount; index += 1) {
+        hasFinalResult ||= Boolean(event.results[index]?.isFinal);
+      }
 
-        if (!echo) {
-          // ── Genuine user speech detected during TTS playback ──
-          // Require at least 1 meaningful word (>2 chars) to avoid noise triggers
-          const meaningfulWords = transcript
-            .split(/\s+/)
-            .filter((w) => w.replace(/[^a-zA-Z0-9]/g, "").length > 2);
-          if (meaningfulWords.length >= 1) {
-            // Barge-in! Stop Akshra, reconcile context, hand mic back to user
-            interruptRef.current();
-            // After interrupt, status is back to "listening" — the transcript we just
-            // captured IS the start of the user's new turn, so feed it into the turn
-            // detection pipeline below (fall through, don't return).
-          } else {
-            return; // Single short grunt / noise — not enough to interrupt
+      if (
+        statusRef.current === "speaking" ||
+        statusRef.current === "thinking" ||
+        isSpeakingQueueRef.current
+      ) {
+        if (statusRef.current === "speaking" || isSpeakingQueueRef.current) {
+          const echo = isLikelyEcho(
+            transcript,
+            currentChunkTextRef.current,
+            spokenChunksRef.current
+          );
+
+          if (echo) {
+            return; // Akshra's own voice — swallow it silently.
           }
+        }
+
+        const meaningfulWords = getMeaningfulSpeechWords(transcript);
+
+        if (meaningfulWords.length >= 1) {
+          interruptRef.current();
+          recognitionTurnPrefixRef.current = transcript;
+          recognitionSegmentsRef.current = [];
+
         } else {
-          return; // Echo — swallow it silently
+          return;
         }
       }
 
-      // ── Normal listening pipeline ──
+      // Modulate speech visual energy according to vocal activity.
+      const lengthDelta = Math.abs(
+        transcript.length - lastTranscriptLengthRef.current
+      );
 
-      // Modulate speech visual energy according to vocal activity
-      const lengthDelta = Math.abs(transcript.length - lastTranscriptLengthRef.current);
       if (lengthDelta > 0) {
         lastTranscriptChangeTimeRef.current = performance.now();
         lastTranscriptLengthRef.current = transcript.length;
-        speechVisualEnergyRef.current = Math.min(1.8, Math.max(0.4, 0.4 + lengthDelta * 0.15));
+        speechVisualEnergyRef.current = Math.min(
+          1.8,
+          Math.max(0.4, 0.4 + lengthDelta * 0.15)
+        );
       }
 
       latestTranscriptRef.current = transcript;
       setUserTranscript(transcript);
       clearSilenceTimer();
 
-      // 🌟 Intelligent Semantic Turn Detection & Adaptive VAD Delay
-      const silenceDelay = calculateSemanticTurnDelay(transcript, hasFinalResult, isMobile);
+      const silenceDelay = calculateSemanticTurnDelay(
+        transcript,
+        hasFinalResult,
+        isMobile
+      );
+
       silenceTimerRef.current = setTimeout(
         () => sendToAIRef.current(latestTranscriptRef.current),
         silenceDelay
@@ -915,55 +997,107 @@ export function useVoiceAssistant({
     recognition.onerror = (event) => {
       if (event.error === "aborted" || event.error === "no-speech") {
         isRecognitionRunningRef.current = false;
+
         if (sessionActiveRef.current && !isMicMutedRef.current) {
-          // Re-arm the mic whether we're listening OR speaking (Phase 1)
-          if (isSpeakingQueueRef.current || statusRef.current === "speaking") {
-            window.setTimeout(() => ensureRecognitionActiveRef.current(), isMobile ? 180 : 300);
+
+          if (
+            isSpeakingQueueRef.current ||
+            statusRef.current === "speaking" ||
+            statusRef.current === "thinking"
+          ) {
+            clearRecognitionWindow();
+
+            window.setTimeout(
+              () => ensureRecognitionActiveRef.current(),
+              isMobile ? 180 : 300
+            );
           } else if (statusRef.current === "listening") {
-            window.setTimeout(() => restartListeningRef.current(), isMobile ? 180 : 300);
+
+            preserveCurrentRecognitionWindow();
+
+            window.setTimeout(
+              () => ensureRecognitionActiveRef.current(),
+              isMobile ? 180 : 300
+            );
           }
         }
+
         return;
       }
 
-      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+      if (
+        event.error === "not-allowed" ||
+        event.error === "service-not-allowed"
+      ) {
         setErrorMessage(
           "Microphone or speech-recognition permission was denied. Allow microphone access in your browser settings."
         );
         updateStatus("error");
       } else if (event.error === "network") {
         isRecognitionRunningRef.current = false;
+
         if (sessionActiveRef.current) {
           const delay = 800;
-          if (isSpeakingQueueRef.current || statusRef.current === "speaking") {
-            window.setTimeout(() => ensureRecognitionActiveRef.current(), delay);
+
+          if (
+            isSpeakingQueueRef.current ||
+            statusRef.current === "speaking" ||
+            statusRef.current === "thinking"
+          ) {
+            clearRecognitionWindow();
+
+            window.setTimeout(
+              () => ensureRecognitionActiveRef.current(),
+              delay
+            );
           } else if (statusRef.current === "listening") {
-            window.setTimeout(() => restartListeningRef.current(), delay);
+            preserveCurrentRecognitionWindow();
+
+            window.setTimeout(
+              () => ensureRecognitionActiveRef.current(),
+              delay
+            );
           }
         }
       }
     };
-
-    /**
-     * 🌟 Phase 1: recognition.onend keeps mic observable across ALL states.
-     * On mobile (continuous=false), recognition ends after every final result.
-     * We must re-arm it immediately — even during "speaking" — so barge-in works.
-     */
     recognition.onend = () => {
       isRecognitionRunningRef.current = false;
+
       if (!sessionActiveRef.current || isMicMutedRef.current) return;
 
-      if (isSpeakingQueueRef.current || statusRef.current === "speaking" || statusRef.current === "thinking") {
-        // Re-arm silently during TTS / thinking — don't change status
-        window.setTimeout(() => ensureRecognitionActiveRef.current(), isMobile ? 120 : 180);
+      if (
+        isSpeakingQueueRef.current ||
+        statusRef.current === "speaking" ||
+        statusRef.current === "thinking"
+      ) {
+        clearRecognitionWindow();
+
+        window.setTimeout(
+          () => ensureRecognitionActiveRef.current(),
+          isMobile ? 120 : 180
+        );
       } else if (statusRef.current === "listening") {
-        window.setTimeout(() => restartListeningRef.current(), isMobile ? 120 : 180);
+        // Preserve the current turn across a mobile recognition restart.
+        preserveCurrentRecognitionWindow();
+
+        window.setTimeout(
+          () => ensureRecognitionActiveRef.current(),
+          isMobile ? 120 : 180
+        );
       }
     };
 
+
     recognitionRef.current = recognition;
     return true;
-  }, [clearSilenceTimer, updateStatus]);
+  }, [
+    clearRecognitionWindow,
+    clearSilenceTimer,
+    getCurrentRecognitionTranscript,
+    preserveCurrentRecognitionWindow,
+    updateStatus,
+  ]);
 
   const stopSession = useCallback(() => {
     sessionGenerationRef.current += 1;
@@ -972,6 +1106,7 @@ export function useVoiceAssistant({
     clearWatchdog();
     cancelCurrentResponse();
     stopRecognition();
+    resetRecognitionTurnBuffers();
     recognitionRef.current = null;
 
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -989,7 +1124,14 @@ export function useVoiceAssistant({
     // Do not destroy sharedAudioContext here so it stays reusable across toggles
     audioContextRef.current = null;
     updateStatus("idle");
-  }, [cancelCurrentResponse, clearSilenceTimer, clearWatchdog, stopRecognition, updateStatus]);
+  }, [
+    cancelCurrentResponse,
+    clearSilenceTimer,
+    clearWatchdog,
+    resetRecognitionTurnBuffers,
+    stopRecognition,
+    updateStatus,
+  ]);
 
   const startSession = useCallback(async () => {
     stopSession();
@@ -999,6 +1141,7 @@ export function useVoiceAssistant({
     setAssistantTranscript("");
     setIsMicMuted(false);
     isMicMutedRef.current = false;
+    resetRecognitionTurnBuffers();
     conversationHistoryRef.current = [...initialConversationRef.current];
     updateStatus("connecting");
 
@@ -1059,7 +1202,12 @@ export function useVoiceAssistant({
     }
 
     restartListeningRef.current();
-  }, [createRecognition, stopSession, updateStatus]);
+  }, [
+    createRecognition,
+    resetRecognitionTurnBuffers,
+    stopSession,
+    updateStatus,
+  ]);
 
   const toggleMute = useCallback(() => {
     const next = !isMicMutedRef.current;
@@ -1072,11 +1220,18 @@ export function useVoiceAssistant({
     if (next) {
       clearSilenceTimer();
       stopRecognition();
+      resetRecognitionTurnBuffers();
       updateStatus("muted");
     } else {
+      resetRecognitionTurnBuffers();
       restartListeningRef.current();
     }
-  }, [clearSilenceTimer, stopRecognition, updateStatus]);
+  }, [
+    clearSilenceTimer,
+    resetRecognitionTurnBuffers,
+    stopRecognition,
+    updateStatus,
+  ]);
 
   const setVoice = useCallback((voice: SpeechSynthesisVoice) => {
     setSelectedVoice(voice);
