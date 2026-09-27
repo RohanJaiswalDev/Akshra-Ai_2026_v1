@@ -10,13 +10,13 @@ import { SettingsModal } from "@/components/SettingsModal";
 import { VoiceAssistantModal } from "@/components/VoiceAssistantModal";
 import { unlockAudioAndSpeech } from "@/lib/useVoiceAssistant";
 import { DEFAULT_MODEL_ID, AVAILABLE_MODELS } from "@/lib/models";
+import { FileAttachment } from "@/types/files";
 
 export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
-  // User auth state initialized cleanly to prevent SSR hydration mismatch
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
@@ -583,8 +583,12 @@ export default function Home() {
     );
   };
 
-  // Send new message to OpenRouter API with real streaming
-  const handleSendMessage = async (text: string, conversation?: Message[]) => {
+  // Send new message to OpenRouter API with real streaming and file attachments
+  const handleSendMessage = async (
+    text: string,
+    attachmentsOrConversation?: FileAttachment[] | Message[],
+    explicitAttachments?: FileAttachment[]
+  ) => {
     // Strict authentication gate: Require genuine logged-in user
     if (!user) {
       setPendingPrompt(text);
@@ -594,11 +598,23 @@ export default function Home() {
 
     if (isStreaming) return;
 
+    let conversation: Message[] | undefined;
+    let attachments: FileAttachment[] | undefined = explicitAttachments;
+
+    if (Array.isArray(attachmentsOrConversation)) {
+      if (attachmentsOrConversation.length > 0 && "role" in attachmentsOrConversation[0]) {
+        conversation = attachmentsOrConversation as Message[];
+      } else {
+        attachments = attachmentsOrConversation as FileAttachment[];
+      }
+    }
+
     const userMsg: Message = {
       id: Date.now().toString(),
       role: "user",
       content: text,
       timestamp: "Just now",
+      attachments,
     };
 
     // Never send a previous connection-error notice back to the model as context.
@@ -643,7 +659,9 @@ export default function Home() {
           messages: newMessages.map((m) => ({
             role: m.role,
             content: m.content,
+            attachments: m.attachments,
           })),
+          attachments,
           model: selectedModel,
           thinking: isThinkingEnabled,
           webSearch: isWebSearchEnabled,
@@ -817,7 +835,11 @@ export default function Home() {
 
     if (lastUserIndex >= 0) {
       const lastUserMsg = messages[lastUserIndex];
-      handleSendMessage(lastUserMsg.content, messages.slice(0, lastUserIndex));
+      handleSendMessage(
+        lastUserMsg.content,
+        messages.slice(0, lastUserIndex),
+        lastUserMsg.attachments
+      );
     }
   };
 

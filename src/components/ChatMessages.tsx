@@ -16,11 +16,22 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
+  Paperclip,
+  Loader2,
+  UploadCloud,
 } from "lucide-react";
 import { AkshraLogo } from "./icons";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { type AuthUser } from "./AuthModals";
 import { unlockAudioAndSpeech } from "@/lib/useVoiceAssistant";
+import { FileAttachment } from "@/types/files";
+import { useFileUpload } from "@/lib/useFileUpload";
+import {
+  AttachedFileChip,
+  MessageFileCard,
+  FileQuickPrompts,
+  ImageLightboxModal,
+} from "./FileAttachmentUI";
 
 export interface Message {
   id: string;
@@ -30,11 +41,12 @@ export interface Message {
   isStreaming?: boolean;
   isError?: boolean;
   feedback?: "up" | "down";
+  attachments?: FileAttachment[];
 }
 
 interface ChatMessagesProps {
   messages: Message[];
-  onSendMessage: (text: string) => void;
+  onSendMessage: (text: string, attachments?: FileAttachment[]) => void;
   onRegenerate?: (messageId: string) => void;
   onFeedback?: (messageId: string, feedback: "up" | "down" | null) => void;
   isStreaming?: boolean;
@@ -118,22 +130,12 @@ function ThoughtProcessCard({
   isStillThinking: boolean;
 }) {
   const [isExpanded, setIsExpanded] = useState<boolean>(isStillThinking);
-  const [seconds, setSeconds] = useState<number>(0);
 
   // Auto-expand when actively thinking
   useEffect(() => {
     if (isStillThinking) {
       setIsExpanded(true);
     }
-  }, [isStillThinking]);
-
-  // Live seconds timer while thinking is underway
-  useEffect(() => {
-    if (!isStillThinking) return;
-    const interval = setInterval(() => {
-      setSeconds((prev) => prev + 1);
-    }, 1000);
-    return () => clearInterval(interval);
   }, [isStillThinking]);
 
   if (!thought && !isStillThinking) return null;
@@ -150,15 +152,9 @@ function ThoughtProcessCard({
             className={`w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0 ${isStillThinking ? "animate-pulse" : ""
               }`}
           />
-          <span>
-            {isStillThinking
-              ? `Thinking deeply... (${seconds}s)`
-              : seconds > 0
-                ? `Thought process (${seconds}s)`
-                : "Thought process"}
-          </span>
+          <span>{isStillThinking ? "Thinking deeply..." : "Thought Process"}</span>
         </div>
-        <div className="flex items-center gap-1 text-purple-600/70 dark:text-purple-400/70">
+        <div className="flex items-center gap-1.5 text-purple-600/70 dark:text-purple-400/70">
           <span className="text-[11px] font-normal">{isExpanded ? "Hide" : "Show"}</span>
           {isExpanded ? (
             <ChevronDown className="w-3.5 h-3.5" />
@@ -169,8 +165,8 @@ function ThoughtProcessCard({
       </button>
 
       {isExpanded && (
-        <div className="px-3.5 py-2.5 border-t border-purple-200/60 dark:border-purple-900/30 bg-white/40 dark:bg-neutral-900/40 font-mono text-[11px] sm:text-xs leading-relaxed text-neutral-600 dark:text-neutral-300 max-h-72 overflow-y-auto whitespace-pre-wrap select-text">
-          {thought || "Deconstructing inquiry, evaluating hypotheses, and testing edge cases..."}
+        <div className="p-3 border-t border-purple-200/60 dark:border-purple-900/30 bg-white/40 dark:bg-neutral-900/40 font-mono text-[11px] leading-relaxed text-neutral-600 dark:text-neutral-400 whitespace-pre-wrap max-h-80 overflow-y-auto">
+          {thought}
           {isStillThinking && (
             <span className="inline-block w-1.5 h-3.5 ml-1 bg-purple-500 animate-pulse align-middle" />
           )}
@@ -180,14 +176,14 @@ function ThoughtProcessCard({
   );
 }
 
-// Real-time Web Search Grounding Card
+// Web Search Verified Sources Card
 function WebSearchSourcesCard({ search }: { search: WebSearchData }) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
 
-  if (!search || !search.results || search.results.length === 0) return null;
+  if (!search.results || search.results.length === 0) return null;
 
   return (
-    <div className="my-2.5 rounded-xl border border-sky-200/90 dark:border-sky-900/40 bg-sky-50/40 dark:bg-sky-950/20 overflow-hidden text-xs shadow-2xs">
+    <div className="my-2.5 rounded-xl border border-sky-200/90 dark:border-sky-900/40 bg-sky-50/40 dark:bg-sky-950/20 overflow-hidden text-xs transition-all shadow-2xs">
       <button
         type="button"
         onClick={() => setIsExpanded((prev) => !prev)}
@@ -196,7 +192,7 @@ function WebSearchSourcesCard({ search }: { search: WebSearchData }) {
         <div className="flex items-center gap-2 text-sky-700 dark:text-sky-300 font-medium">
           <Globe className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
           <span>
-            Searched web:{" "}
+            Searched web for:{" "}
             <span className="font-semibold italic truncate max-w-[180px] sm:max-w-xs inline-block align-bottom">
               &quot;{search.query}&quot;
             </span>
@@ -261,8 +257,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   onRegenerate,
   onFeedback,
   canRegenerate,
-  user,
-  onOpenLogin,
+  onImageClick,
 }: {
   msg: Message;
   copiedId: string | null;
@@ -272,6 +267,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   canRegenerate: boolean;
   user?: AuthUser | null;
   onOpenLogin?: () => void;
+  onImageClick?: (url: string, name: string) => void;
 }) {
   const isUser = msg.role === "user";
 
@@ -284,6 +280,18 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
     return (
       <div className="flex justify-end animate-in fade-in duration-150">
         <div className="max-w-[88%] sm:max-w-[80%] md:max-w-[75%] rounded-2xl px-3.5 sm:px-4 py-2.5 sm:py-3 text-[14px] sm:text-sm leading-relaxed bg-neutral-100 dark:bg-[#2f2f2f] text-neutral-900 dark:text-neutral-100 rounded-br-sm shadow-xs select-text">
+          {/* Attached Files inside User Message */}
+          {msg.attachments && msg.attachments.length > 0 && (
+            <div className="flex flex-col gap-1.5 mb-2.5">
+              {msg.attachments.map((file) => (
+                <MessageFileCard
+                  key={file.id}
+                  attachment={file}
+                  onImageClick={onImageClick}
+                />
+              ))}
+            </div>
+          )}
           <div className="whitespace-pre-wrap font-sans">{msg.content}</div>
         </div>
       </div>
@@ -369,13 +377,7 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
             {onRegenerate && canRegenerate && (
               <button
                 type="button"
-                onClick={() => {
-                  if (!user) {
-                    onOpenLogin?.();
-                  } else {
-                    onRegenerate(msg.id);
-                  }
-                }}
+                onClick={() => onRegenerate(msg.id)}
                 className="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 transition cursor-pointer"
                 title="Regenerate response"
               >
@@ -408,11 +410,25 @@ export function ChatMessages({
   const [input, setInput] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
+  const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesStartRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const rafScrollRef = useRef<number | null>(null);
+
+  const {
+    attachments,
+    isUploading,
+    uploadError,
+    setUploadError,
+    isDragging,
+    setIsDragging,
+    uploadFiles,
+    removeAttachment,
+    clearAttachments,
+  } = useFileUpload();
 
   // Smooth scroll to top when button clicked
   const scrollToTop = () => {
@@ -506,6 +522,18 @@ export function ChatMessages({
     }
   }
 
+  const submitMessage = () => {
+    const trimmed = input.trim();
+    if (!trimmed && attachments.length === 0) return;
+    if (isStreaming) return;
+
+    const finalPrompt = trimmed || "Please analyze this attached file in detail.";
+    onSendMessage(finalPrompt, attachments.length > 0 ? attachments : undefined);
+    setInput("");
+    clearAttachments();
+    setTimeout(() => scrollToBottom(true), 40);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -513,16 +541,72 @@ export function ChatMessages({
         onOpenLogin?.();
         return;
       }
-      if (input.trim() && !isStreaming) {
-        onSendMessage(input.trim());
-        setInput("");
-        setTimeout(() => scrollToBottom(true), 40);
-      }
+      submitMessage();
     }
   };
 
+  // Drag and Drop handling
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (user && !isDragging) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (!user) {
+      onOpenLogin?.();
+      return;
+    }
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      await uploadFiles(e.dataTransfer.files);
+    }
+  };
+
+  const canSubmit = (input.trim().length > 0 || attachments.length > 0) && !isStreaming && !isUploading;
+
   return (
-    <div className="flex-1 min-h-0 flex flex-col w-full h-full relative overflow-hidden">
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className="flex-1 min-h-0 flex flex-col w-full h-full relative overflow-hidden"
+    >
+      {/* Lightbox for zooming in on images */}
+      {previewImage && (
+        <ImageLightboxModal
+          url={previewImage.url}
+          name={previewImage.name}
+          onClose={() => setPreviewImage(null)}
+        />
+      )}
+
+      {/* Drag & Drop Visual Overlay */}
+      {isDragging && (
+        <div className="absolute inset-4 z-40 rounded-3xl border-2 border-dashed border-sky-400 bg-sky-50/80 dark:bg-sky-950/80 backdrop-blur-xs flex flex-col items-center justify-center gap-3 animate-in fade-in duration-150 pointer-events-none">
+          <div className="w-14 h-14 rounded-2xl bg-sky-500/20 text-sky-600 dark:text-sky-300 flex items-center justify-center shadow-lg">
+            <UploadCloud className="w-8 h-8 animate-bounce" />
+          </div>
+          <div className="text-center px-4">
+            <p className="text-base font-semibold text-sky-900 dark:text-sky-100">
+              Drop files to attach to this chat
+            </p>
+            <p className="text-xs text-sky-700 dark:text-sky-300 mt-1">
+              Supports PDF, DOCX, XLSX, CSV, JSON, TXT, and Images
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Scrollable messages container with native instant mouse wheel response */}
       <div
         ref={scrollContainerRef}
@@ -547,6 +631,7 @@ export function ChatMessages({
             canRegenerate={index === lastAssistantIndex && !isStreaming}
             user={user}
             onOpenLogin={onOpenLogin}
+            onImageClick={(url, name) => setPreviewImage({ url, name })}
           />
         ))}
 
@@ -568,14 +653,23 @@ export function ChatMessages({
         </div>
       )}
 
-      {/* Floating Bottom Input Bar with Safe Area Support */}
-      <div className="absolute bottom-0 left-0 right-0 px-3 sm:px-6 md:px-10 py-2.5 sm:py-3.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-gradient-to-t from-[var(--canvas-bg)] via-[var(--canvas-bg)] to-transparent pt-4 sm:pt-6 z-20 gpu-accelerated">
-        <div className="max-w-3xl w-full mx-auto">
+      {/* Fixed bottom input container */}
+      <div className="absolute bottom-0 left-0 right-0 z-20 pointer-events-none bg-gradient-to-t from-white via-white/95 to-transparent dark:from-[#212121] dark:via-[#212121]/95 dark:to-transparent pt-8 pb-3 sm:pb-5 px-3 sm:px-6">
+        <div className="max-w-2xl w-full mx-auto pointer-events-auto">
           {!user ? (
-            <div className="relative flex flex-col sm:flex-row items-center justify-between gap-3 bg-white/95 dark:bg-[#252528]/95 backdrop-blur-md rounded-2xl sm:rounded-full border border-neutral-200/90 dark:border-neutral-700 shadow-[0_4px_24px_rgba(0,0,0,0.08)] px-4 sm:px-6 py-3 animate-in fade-in duration-200">
-              <div className="flex items-center gap-2.5 text-xs sm:text-sm text-neutral-700 dark:text-neutral-300 text-center sm:text-left">
-                <Lock className="w-4 h-4 text-amber-500 shrink-0" />
-                <span>Log in or create an account to continue chatting with Akshra Ai.</span>
+            <div className="flex items-center justify-between gap-3 p-3 sm:p-4 rounded-2xl bg-neutral-50/90 dark:bg-[#2a2a2d]/90 border border-neutral-200 dark:border-neutral-700 shadow-lg backdrop-blur-md">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center shrink-0">
+                  <Lock className="w-4 h-4 text-neutral-600 dark:text-neutral-300" />
+                </div>
+                <div>
+                  <h4 className="text-xs sm:text-sm font-semibold text-neutral-900 dark:text-white">
+                    Authentication required
+                  </h4>
+                  <p className="text-[11px] sm:text-xs text-neutral-500 dark:text-neutral-400">
+                    Log in or create a free account to continue this conversation.
+                  </p>
+                </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <button
@@ -596,6 +690,43 @@ export function ChatMessages({
             </div>
           ) : (
             <>
+              {/* Attached Files Preview Chips Container */}
+              {attachments.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 mb-2 px-1 animate-in fade-in duration-200">
+                  {attachments.map((file) => (
+                    <AttachedFileChip
+                      key={file.id}
+                      file={file}
+                      onRemove={() => removeAttachment(file.id)}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Upload error notice */}
+              {uploadError && (
+                <div className="mb-2 text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 rounded-xl px-3 py-1.5 flex items-center justify-between animate-in fade-in duration-150">
+                  <span>{uploadError}</span>
+                  <button
+                    type="button"
+                    onClick={() => setUploadError(null)}
+                    className="text-rose-400 hover:text-rose-700 ml-1 cursor-pointer"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+
+              {/* Dynamic Contextual Prompts for Attached Files */}
+              {attachments.length > 0 && (
+                <FileQuickPrompts
+                  attachments={attachments}
+                  onSelectPrompt={(prompt) => {
+                    setInput(prompt);
+                  }}
+                />
+              )}
+
               {/* Active Search & Thinking Status Badges */}
               {(isThinkingEnabled || isWebSearchEnabled) && (
                 <div className="flex flex-wrap items-center gap-1.5 mb-2 px-2 animate-in fade-in duration-200">
@@ -630,13 +761,61 @@ export function ChatMessages({
                 </div>
               )}
 
-              <div className="relative flex items-center bg-white dark:bg-[#2f2f2f] rounded-full border border-neutral-200/90 dark:border-[#424242] shadow-[0_4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.35)] px-4 sm:px-6 py-2.5 sm:py-3 focus-within:border-neutral-400 dark:focus-within:border-neutral-500 transition">
+              <div className="relative flex items-center bg-white dark:bg-[#2f2f2f] rounded-full border border-neutral-200/90 dark:border-[#424242] shadow-[0_4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.35)] px-3 sm:px-5 py-2 sm:py-2.5 focus-within:border-neutral-400 dark:focus-within:border-neutral-500 transition">
+                {/* Paperclip Attach Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!user) {
+                      onOpenLogin?.();
+                      return;
+                    }
+                    fileInputRef.current?.click();
+                  }}
+                  disabled={isUploading}
+                  className={`relative w-8 h-8 sm:w-9 sm:h-9 min-w-[32px] sm:min-w-[36px] rounded-full flex items-center justify-center shrink-0 mr-1.5 transition-all active:scale-95 cursor-pointer ${attachments.length > 0
+                    ? "bg-emerald-100 dark:bg-emerald-950/70 text-emerald-600 dark:text-emerald-300 ring-1 ring-emerald-400/50"
+                    : "text-neutral-400 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                    }`}
+                  title="Attach files (PDF, DOCX, XLSX, CSV, JSON, TXT, Images)"
+                  aria-label="Attach file"
+                >
+                  {isUploading ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-sky-500" />
+                  ) : (
+                    <Paperclip className="w-4 h-4" />
+                  )}
+                  {attachments.length > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-emerald-600 text-white text-[9px] font-bold flex items-center justify-center shadow-2xs">
+                      {attachments.length}
+                    </span>
+                  )}
+                </button>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,.docx,.doc,.txt,.md,.csv,.xlsx,.xls,.json,image/*"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                      uploadFiles(e.target.files);
+                      e.target.value = "";
+                    }
+                  }}
+                  className="hidden"
+                />
+
                 <textarea
                   rows={1}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Ask Akshra Ai anything..."
+                  placeholder={
+                    attachments.length > 0
+                      ? `Ask about ${attachments.length === 1 ? `"${attachments[0].name}"` : `${attachments.length} attached files`}...`
+                      : "Ask Akshra Ai anything..."
+                  }
                   className="w-full bg-transparent text-[16px] sm:text-sm text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-400 outline-none resize-none max-h-32 pr-2 py-0.5 font-normal"
                 />
 
@@ -731,14 +910,10 @@ export function ChatMessages({
                         onOpenLogin?.();
                         return;
                       }
-                      if (input.trim()) {
-                        onSendMessage(input.trim());
-                        setInput("");
-                        setTimeout(() => scrollToBottom(true), 40);
-                      }
+                      submitMessage();
                     }}
-                    disabled={!input.trim()}
-                    className={`w-8 h-8 sm:w-9 sm:h-9 min-w-[32px] sm:min-w-[36px] rounded-full flex items-center justify-center shrink-0 transition-all ${input.trim()
+                    disabled={!canSubmit}
+                    className={`w-8 h-8 sm:w-9 sm:h-9 min-w-[32px] sm:min-w-[36px] rounded-full flex items-center justify-center shrink-0 transition-all ${canSubmit
                       ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 cursor-pointer shadow-sm active:scale-95"
                       : "bg-neutral-200 dark:bg-neutral-700 text-neutral-400 dark:text-neutral-500 cursor-not-allowed"
                       }`}

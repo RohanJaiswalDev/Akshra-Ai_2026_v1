@@ -1,5 +1,7 @@
 import mongoose, { Schema, Model } from "mongoose";
 
+import { FileAttachment } from "@/types/files";
+
 export interface IChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -7,6 +9,7 @@ export interface IChatMessage {
   timestamp: string;
   isError?: boolean;
   feedback?: "up" | "down";
+  attachments?: FileAttachment[];
 }
 
 export interface IChat {
@@ -29,6 +32,7 @@ const ChatMessageSchema = new Schema<IChatMessage>(
     timestamp: { type: String, required: true },
     isError: { type: Boolean, default: false },
     feedback: { type: String, enum: ["up", "down"] },
+    attachments: { type: Array, default: undefined },
   },
   { _id: false }
 );

@@ -3,6 +3,8 @@ import { getCurrentUserFromCookie } from "@/lib/auth";
 import { AVAILABLE_MODELS, DEFAULT_MODEL_ID } from "@/lib/models";
 import { getUserMemories } from "@/lib/db-store";
 import { performWebSearch, formatWebSearchPrompt, type SearchResult } from "@/lib/web-search";
+import { FileAttachment } from "@/types/files";
+import { retrieveFileContext } from "@/lib/files/retrieval";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,8 +12,8 @@ export const maxDuration = 120;
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MAX_MESSAGES = 50;
-const MAX_MESSAGE_LENGTH = 32_000;
-const MAX_TOTAL_LENGTH = 100_000;
+const MAX_MESSAGE_LENGTH = 64_000;
+const MAX_TOTAL_LENGTH = 200_000;
 const RETRYABLE_STATUS_CODES = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
 const ALLOWED_ROLES = new Set(["user", "assistant"]);
 const AVAILABLE_MODEL_IDS = new Set(AVAILABLE_MODELS.map(({ id }) => id));
@@ -19,6 +21,7 @@ const AVAILABLE_MODEL_IDS = new Set(AVAILABLE_MODELS.map(({ id }) => id));
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
+  attachments?: FileAttachment[];
 };
 
 type ChatRequestBody = {
@@ -28,6 +31,7 @@ type ChatRequestBody = {
   personality?: "natural" | "professional" | "friendly" | "teacher" | "developer";
   thinking?: boolean;
   webSearch?: boolean;
+  attachments?: unknown;
 };
 
 function jsonError(error: string, status: number, retryable = false) {
@@ -63,9 +67,13 @@ function parseMessages(value: unknown): ChatMessage[] | null {
     totalLength += message.content.length;
     if (totalLength > MAX_TOTAL_LENGTH) return null;
 
+    const rawAttachments = (message as Record<string, unknown>).attachments;
     messages.push({
       role: message.role as ChatMessage["role"],
       content: message.content,
+      attachments: Array.isArray(rawAttachments)
+        ? (rawAttachments as FileAttachment[])
+        : undefined,
     });
   }
 
@@ -103,7 +111,15 @@ function getRetryDelay(response: Response) {
 }
 
 // Phase 3: Automatic Smart Model Routing
-function routeModelIntelligently(userPrompt: string, isVoiceMode: boolean): string {
+function routeModelIntelligently(
+  userPrompt: string,
+  isVoiceMode: boolean,
+  hasImages: boolean = false
+): string {
+  if (hasImages) {
+    return "openai/gpt-4o-mini";
+  }
+
   const text = userPrompt.toLowerCase();
 
   // Voice mode: ultra-fast streaming with DeepSeek V3
@@ -167,18 +183,46 @@ export async function POST(req: Request) {
     const isThinkingMode = body.thinking === true && !isVoiceMode;
     const isWebSearchMode = body.webSearch === true && !isVoiceMode;
 
+    const latestUserMsg = messages.filter((m) => m.role === "user").pop();
+    const latestUserPrompt = latestUserMsg?.content || "";
+
+    // Phase 4: File Attachments Context Retrieval & Image Processing
+    const requestAttachments: FileAttachment[] = Array.isArray(body.attachments)
+      ? (body.attachments as FileAttachment[])
+      : [];
+    const activeAttachments: FileAttachment[] = [
+      ...requestAttachments,
+      ...(latestUserMsg?.attachments || []),
+    ];
+
+    let fileContextPrompt = "";
+    let hasImages = false;
+    let imageUrls: string[] = [];
+
+    if (activeAttachments.length > 0) {
+      try {
+        const fileRetrieval = await retrieveFileContext(latestUserPrompt, activeAttachments);
+        fileContextPrompt = fileRetrieval.formattedContext;
+        hasImages = fileRetrieval.hasImages;
+        imageUrls = fileRetrieval.imageUrls;
+      } catch (err) {
+        console.warn("[retrieveFileContext error]:", err);
+      }
+    }
+
     // Auto Model Routing & Thinking Mode selection
     let finalModel = requestedModel;
-    if (isThinkingMode) {
+    if (hasImages) {
+      // Vision model routing: OpenAI GPT-4o Mini natively processes image_url
+      finalModel = "openai/gpt-4o-mini";
+    } else if (isThinkingMode) {
       // User requested Thinking Mode: automatically route to DeepSeek V3
       finalModel = "deepseek/deepseek-chat";
     } else if (requestedModel === "auto") {
-      const latestUserPrompt = messages.filter((m) => m.role === "user").pop()?.content || "";
-      finalModel = routeModelIntelligently(latestUserPrompt, isVoiceMode);
+      finalModel = routeModelIntelligently(latestUserPrompt, isVoiceMode, hasImages);
     }
 
-    // Phase 4: Real-time Web Search Execution
-    const latestUserPrompt = messages.filter((m) => m.role === "user").pop()?.content || "";
+    // Phase 5: Real-time Web Search Execution
     let webSearchResults: SearchResult[] = [];
     let webSearchPrompt = "";
 
@@ -193,7 +237,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // Phase 5: Fetch user memories
+    // Phase 6: Fetch user memories
     let memoryGuidance = "";
     try {
       const memories = await getUserMemories(session.userId);
@@ -207,7 +251,7 @@ export async function POST(req: Request) {
       // Memory failure must never block chat
     }
 
-    // Phase 6: Voice & Persona tone adjustment
+    // Phase 7: Voice & Persona tone adjustment
     const personality = body.personality || "natural";
     const personalityVoiceConfigs: Record<
       string,
@@ -257,7 +301,7 @@ export async function POST(req: Request) {
       ? `You are Akshra Ai, a ${selectedPersona.title}. You are speaking directly aloud to the user right now in real time. ${selectedPersona.voicePersona} Answer conversationally in 1 to 2 short, crisp spoken sentences unless the user explicitly requests more detail. Crucial voice formatting rule: Never use markdown formatting, asterisks, bolding, bullet points, numbered lists, emojis, URLs, or code blocks, as your text is converted straight into spoken voice output.`
       : `You are Akshra Ai, an accurate AI assistant and ${selectedPersona.title}. ${selectedPersona.textPersona} Format code in fenced Markdown blocks with the appropriate language identifier.`;
 
-    // Phase 7: Deep Thinking Mode System Instructions
+    // Phase 8: Deep Thinking Mode System Instructions
     let thinkingPrompt = "";
     if (isThinkingMode) {
       thinkingPrompt = `\n\n[DEEP REASONING & ANALYTICAL THINKING MODE]
@@ -273,14 +317,53 @@ Take the necessary intellectual time and depth — do not truncate or summarize 
 After closing the </think> tag, output your polished, complete, and definitive response.`;
     }
 
-    const systemPrompt = `${basePrompt}${memoryGuidance}${webSearchPrompt}${thinkingPrompt}`;
+    // Phase 9: File Attachment Protocol
+    let fileSystemPrompt = "";
+    if (activeAttachments.length > 0) {
+      fileSystemPrompt = `\n\n[FILE ATTACHMENT ANALYSIS PROTOCOL]
+You have direct access to user-attached files (spreadsheets, documents, PDFs, code, CSVs, JSON, or images).
+1. When asked to "Analyze this Excel file" or spreadsheet: analyze sheet names, dimensions, column names, key trends, distributions, summary statistics, and notable patterns.
+2. When asked to "Summarize this PDF" or document: extract the main themes, executive summary, key takeaways, and reference specific sections or pages.
+3. When asked to "Find errors in this CSV" or data: inspect for missing/null values, mismatched data types, anomalous values, duplicate entries, inconsistent formatting, or corrupted rows. Point them out clearly with row/column references and suggest corrections.
+4. When asked about images: describe visual elements, transcribe any visible text/code, and analyze diagrams or figures thoroughly.
+5. Provide crisp, structured Markdown tables, bullet points, and actionable insights.`;
+    }
+
+    const systemPrompt = `${basePrompt}${memoryGuidance}${fileSystemPrompt}${fileContextPrompt}${webSearchPrompt}${thinkingPrompt}`;
+
+    const userRoleMessages = messages.map((m, index) => {
+      const isLatestUser = index === messages.length - 1 && m.role === "user";
+      if (isLatestUser && hasImages && imageUrls.length > 0) {
+        const parts: Array<
+          | { type: "text"; text: string }
+          | { type: "image_url"; image_url: { url: string } }
+        > = [{ type: "text", text: m.content }];
+
+        for (const url of imageUrls) {
+          parts.push({
+            type: "image_url",
+            image_url: { url },
+          });
+        }
+
+        return {
+          role: m.role,
+          content: parts,
+        };
+      }
+
+      return {
+        role: m.role,
+        content: m.content,
+      };
+    });
 
     const formattedMessages = [
       {
         role: "system",
         content: systemPrompt,
       },
-      ...messages,
+      ...userRoleMessages,
     ];
 
     let openRouterResponse: Response | undefined;
