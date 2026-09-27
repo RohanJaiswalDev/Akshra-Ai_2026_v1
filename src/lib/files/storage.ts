@@ -66,9 +66,9 @@ export async function saveFile(
     mimeType,
     category: parsed.category,
     url: `/api/files/${fileId}`,
-    extractedText: parsed.extractedText,
-    summary: parsed.summary,
-    chunksCount: parsed.chunks.length,
+    extractedText: parsed.extractedText || "",
+    summary: parsed.summary || "",
+    chunksCount: parsed.chunks?.length || 0,
     pageCount: parsed.pageCount,
     rowCount: parsed.rowCount,
     sheetNames: parsed.sheetNames,
@@ -80,13 +80,17 @@ export async function saveFile(
   fileCache.set(fileId, attachment);
 
   // Write metadata JSON to disk for persistence across server restarts
-  const metadataPayload = {
-    ...attachment,
-    userId,
-    storagePath: filePath,
-    chunks: parsed.chunks,
-  };
-  await fs.writeFile(metadataPath, JSON.stringify(metadataPayload, null, 2), "utf-8");
+  try {
+    const metadataPayload = {
+      ...attachment,
+      userId,
+      storagePath: filePath,
+      chunks: parsed.chunks || [],
+    };
+    await fs.writeFile(metadataPath, JSON.stringify(metadataPayload, null, 2), "utf-8");
+  } catch (err) {
+    console.warn(`[saveFile metadata write error for ${fileId}]:`, err);
+  }
 
   return attachment;
 }

@@ -53,30 +53,35 @@ export async function parseFileBuffer(
   mimeType: string,
   fileId: string
 ): Promise<ParsedDocument> {
-  const category = detectFileCategory(mimeType, filename);
+  try {
+    const category = detectFileCategory(mimeType, filename);
 
-  switch (category) {
-    case "pdf":
-      return parsePdf(buffer, filename, fileId);
+    switch (category) {
+      case "pdf":
+        return await parsePdf(buffer, filename, fileId);
 
-    case "docx":
-      return parseDocx(buffer, filename, fileId);
+      case "docx":
+        return await parseDocx(buffer, filename, fileId);
 
-    case "spreadsheet":
-      return parseSpreadsheet(buffer, filename, fileId);
+      case "spreadsheet":
+        return await parseSpreadsheet(buffer, filename, fileId);
 
-    case "csv":
-      return parseCsv(buffer, filename, fileId);
+      case "csv":
+        return await parseCsv(buffer, filename, fileId);
 
-    case "json":
-      return parseJson(buffer, filename, fileId);
+      case "json":
+        return await parseJson(buffer, filename, fileId);
 
-    case "image":
-      return parseImage(buffer, filename, mimeType, fileId);
+      case "image":
+        return await parseImage(buffer, filename, mimeType, fileId);
 
-    case "text":
-    default:
-      return parsePlainText(buffer, filename, fileId);
+      case "text":
+      default:
+        return await parsePlainText(buffer, filename, fileId);
+    }
+  } catch (error) {
+    console.error(`[parseFileBuffer fallback for ${filename}]:`, error);
+    return parsePlainText(buffer, filename, fileId);
   }
 }
 

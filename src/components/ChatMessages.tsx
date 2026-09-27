@@ -79,8 +79,8 @@ interface ParsedMessage {
   finalContent: string;
 }
 
-function parseMessageContent(rawContent: string, isStreaming?: boolean): ParsedMessage {
-  let content = rawContent;
+function parseMessageContent(rawContent?: string | null, isStreaming?: boolean): ParsedMessage {
+  let content = typeof rawContent === "string" ? rawContent : "";
   let webSearch: WebSearchData | undefined;
 
   // Extract <!--web_search:...-->

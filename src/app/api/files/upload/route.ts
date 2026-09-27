@@ -19,14 +19,16 @@ export async function POST(req: NextRequest) {
     }
 
     const formData = await req.formData();
-    const file = formData.get("file") as File | null;
+    const fileEntry = formData.get("file");
 
-    if (!file) {
+    if (!fileEntry || typeof fileEntry === "string" || !(fileEntry instanceof Blob)) {
       return NextResponse.json(
-        { error: "No file was provided in the request." },
+        { error: "No valid file was provided in the request." },
         { status: 400 }
       );
     }
+
+    const file = fileEntry as File;
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
       return NextResponse.json(
@@ -42,7 +44,7 @@ export async function POST(req: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Parse and chunk document
+    // Parse and chunk document (failsafe, never throws unhandled exception)
     const parsed = await parseFileBuffer(buffer, filename, mimeType, fileId);
 
     // Save to storage
@@ -63,9 +65,10 @@ export async function POST(req: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : "Failed to process and store uploaded file.";
     console.error("[upload error]:", error);
     return NextResponse.json(
-      { error: "Failed to process and store uploaded file." },
+      { error: errorMsg },
       { status: 500 }
     );
   }
