@@ -10,7 +10,7 @@ export interface AIModel {
 export const AVAILABLE_MODELS: AIModel[] = [
   {
     id: "auto",
-    name: "Auto (Smart Router)",
+    name: "Auto Smart",
     provider: "Akshra AI",
     category: "Auto",
     badge: "Smart",
@@ -21,7 +21,7 @@ export const AVAILABLE_MODELS: AIModel[] = [
     name: "DeepSeek V3",
     provider: "DeepSeek",
     category: "Fast",
-    badge: "Fast",
+    badge: "Flagship",
     description: "Ultra-fast, state-of-the-art coding, reasoning, and real-time conversation.",
   },
   {
