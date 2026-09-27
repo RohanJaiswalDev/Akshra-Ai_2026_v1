@@ -170,7 +170,8 @@ export async function POST(req: Request) {
     // Auto Model Routing & Thinking Mode selection
     let finalModel = requestedModel;
     if (isThinkingMode) {
-      finalModel = "deepseek/deepseek-r1";
+      // User requested Thinking Mode: automatically route to DeepSeek V3
+      finalModel = "deepseek/deepseek-chat";
     } else if (requestedModel === "auto") {
       const latestUserPrompt = messages.filter((m) => m.role === "user").pop()?.content || "";
       finalModel = routeModelIntelligently(latestUserPrompt, isVoiceMode);
@@ -260,7 +261,7 @@ After closing the </think> tag, output your polished, complete, and definitive r
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: attempt === 1 && finalModel === "deepseek/deepseek-r1" ? "deepseek/deepseek-chat" : finalModel,
+          model: finalModel,
           messages: formattedMessages,
           stream: true,
           ...(isVoiceMode ? { max_tokens: 180, temperature: 0.7 } : {}),
