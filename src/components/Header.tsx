@@ -105,7 +105,10 @@ export function Header({
             <span className="text-[15px] sm:text-[17px] font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
               Akshra Ai
             </span>
-            <span className="inline-flex items-center gap-1 text-xs font-medium text-neutral-600 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded-lg border border-neutral-200/60 dark:border-neutral-700/60 max-w-[130px] sm:max-w-[160px] truncate">
+            <span
+              className="inline-flex items-center gap-1 text-xs font-medium text-neutral-600 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded-lg border border-neutral-200/60 dark:border-neutral-700/60 max-w-[130px] sm:max-w-[160px] truncate"
+              suppressHydrationWarning
+            >
               {activeModelObj.id === "auto" && <Sparkles className="w-3 h-3 text-cyan-500 shrink-0" />}
               <span className="truncate">{activeModelObj.name}</span>
             </span>
@@ -148,8 +151,8 @@ export function Header({
                               setIsModelMenuOpen(false);
                             }}
                             className={`w-full text-left px-2.5 py-2 rounded-xl transition cursor-pointer flex items-start justify-between gap-2 group ${isSelected
-                                ? "bg-neutral-100 dark:bg-neutral-800/90 font-medium"
-                                : "hover:bg-neutral-50 dark:hover:bg-neutral-800/40"
+                              ? "bg-neutral-100 dark:bg-neutral-800/90 font-medium"
+                              : "hover:bg-neutral-50 dark:hover:bg-neutral-800/40"
                               }`}
                           >
                             <div className="flex-1 min-w-0">
@@ -191,7 +194,7 @@ export function Header({
       </div>
 
       {/* Right: Auth action buttons + Theme Switcher */}
-      <div className="flex items-center gap-1.5 sm:gap-2.5">
+      <div className="flex items-center gap-1.5 sm:gap-2.5" suppressHydrationWarning>
         {/* Quick Theme Switcher */}
         <ThemeSelector compact={true} />
 

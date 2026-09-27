@@ -15,30 +15,11 @@ export default function Home() {
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
-  // Immediate client-side session hydration to eliminate reload flicker
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const saved = localStorage.getItem("akshra_auth_user");
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
+  // User auth state initialized cleanly to prevent SSR hydration mismatch
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState<string>(() => {
-    if (typeof window === "undefined") return DEFAULT_MODEL_ID;
-    try {
-      const saved = localStorage.getItem("akshra_selected_model");
-      if (saved && AVAILABLE_MODELS.some((m) => m.id === saved)) {
-        return saved;
-      }
-    } catch {
-      // ignore
-    }
-    return DEFAULT_MODEL_ID;
-  });
+  const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_MODEL_ID);
 
   // Reference to abort ongoing chat stream
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -151,13 +132,21 @@ export default function Home() {
         if (savedMemory !== null) {
           setIsMemoryEnabled(savedMemory !== "false");
         }
+        // Load saved user from localStorage
+        const savedUser = localStorage.getItem("akshra_auth_user");
+        if (savedUser) {
+          try {
+            setUser(JSON.parse(savedUser));
+          } catch {
+            // ignore
+          }
+        }
       } catch (e) {
         console.error("Failed to load local settings:", e);
       }
     };
 
-    const frame = window.requestAnimationFrame(initializeFromStorage);
-    return () => window.cancelAnimationFrame(frame);
+    initializeFromStorage();
   }, []);
 
   // Fetch account-scoped chats from database when authenticated
