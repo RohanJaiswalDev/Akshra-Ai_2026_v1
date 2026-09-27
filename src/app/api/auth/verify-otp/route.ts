@@ -21,7 +21,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Verify OTP record with attempt tracking & cryptographic hash
     const verification = await checkOtp(email, otp);
 
     if (!verification.success) {
@@ -31,14 +30,26 @@ export async function POST(req: Request) {
       );
     }
 
+    const firstName = getStringField(body, "firstName");
+    const lastName = getStringField(body, "lastName");
+    const mobileNumber = getStringField(body, "mobileNumber");
+    const derivedName = firstName ? `${firstName} ${lastName}`.trim() : "";
+
     // Find or create User in MongoDB / store
-    const user = await getOrCreateUser(email);
+    const user = await getOrCreateUser(email, derivedName, {
+      firstName,
+      lastName,
+      mobileNumber,
+    });
 
     // Create a persistent session after a successful OTP verification.
     await createSessionCookie({
       userId: user.id,
       email: user.email,
       name: user.name,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      mobileNumber: user.mobileNumber,
     });
 
     return NextResponse.json({
@@ -48,6 +59,9 @@ export async function POST(req: Request) {
         id: user.id,
         email: user.email,
         name: user.name,
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
+        mobileNumber: user.mobileNumber || "",
       },
     });
   } catch (error: unknown) {

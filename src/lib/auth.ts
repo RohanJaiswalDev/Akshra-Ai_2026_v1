@@ -8,6 +8,9 @@ export interface SessionPayload {
   userId: string;
   email: string;
   name?: string;
+  firstName?: string;
+  lastName?: string;
+  mobileNumber?: string;
 }
 
 function getJwtSecret() {
@@ -18,12 +21,13 @@ function getJwtSecret() {
 }
 
 export function signSessionToken(payload: SessionPayload): string {
-  // Strip any existing JWT claims (iat, exp, etc.) from previously decoded tokens
-  // to avoid jsonwebtoken throwing "Bad options.expiresIn option the payload already has an exp property"
   const cleanPayload: SessionPayload = {
     userId: payload.userId,
     email: payload.email,
     name: payload.name,
+    firstName: payload.firstName,
+    lastName: payload.lastName,
+    mobileNumber: payload.mobileNumber,
   };
 
   return jwt.sign(cleanPayload, getJwtSecret(), {

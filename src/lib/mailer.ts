@@ -3,9 +3,10 @@ import nodemailer from "nodemailer";
 interface SendOtpMailParams {
   email: string;
   otp: string;
+  name?: string;
 }
 
-export async function sendOtpEmail({ email, otp }: SendOtpMailParams): Promise<{
+export async function sendOtpEmail({ email, otp, name }: SendOtpMailParams): Promise<{
   delivered: boolean;
   messageId?: string;
   previewUrl?: string | false;
@@ -61,7 +62,7 @@ export async function sendOtpEmail({ email, otp }: SendOtpMailParams): Promise<{
                 </tr>
                 <tr>
                   <td style="padding-bottom:12px;font-size:16px;line-height:24px;color:#27272a;text-align:center;">
-                    Here is your temporary verification code:
+                    ${name ? `Hello <strong>${name}</strong>,<br />` : ""}Here is your temporary verification code:
                   </td>
                 </tr>
                 <tr>

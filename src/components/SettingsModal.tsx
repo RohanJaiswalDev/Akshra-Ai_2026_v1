@@ -299,6 +299,14 @@ export function SettingsModal({
                     </div>
 
                     <div className="space-y-2">
+                      {user.mobileNumber && (
+                        <div className="flex items-center justify-between text-xs py-2 border-b border-neutral-100 dark:border-neutral-800/80">
+                          <span className="text-neutral-500 dark:text-neutral-400">Mobile Number</span>
+                          <span className="font-medium text-neutral-800 dark:text-neutral-200">
+                            {user.mobileNumber}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between text-xs py-2 border-b border-neutral-100 dark:border-neutral-800/80">
                         <span className="text-neutral-500 dark:text-neutral-400">Database Sync</span>
                         <span className="font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">

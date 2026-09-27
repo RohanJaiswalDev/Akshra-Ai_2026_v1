@@ -10,6 +10,9 @@ interface MemoryUser {
   id: string;
   email: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
+  mobileNumber?: string;
   isVerified: boolean;
   createdAt: Date;
 }
@@ -188,6 +191,9 @@ export async function findUserByEmail(email: string): Promise<MemoryUser | null>
       id: user._id.toString(),
       email: user.email,
       name: user.name,
+      firstName: user.firstName || "",
+      lastName: user.lastName || "",
+      mobileNumber: user.mobileNumber || "",
       isVerified: user.isVerified,
       createdAt: user.createdAt,
     };
@@ -206,6 +212,9 @@ export async function findUserById(userId: string): Promise<MemoryUser | null> {
       id: user._id.toString(),
       email: user.email,
       name: user.name,
+      firstName: user.firstName || "",
+      lastName: user.lastName || "",
+      mobileNumber: user.mobileNumber || "",
       isVerified: user.isVerified,
       createdAt: user.createdAt,
     };
@@ -217,20 +226,34 @@ export async function findUserById(userId: string): Promise<MemoryUser | null> {
   }
 }
 
-export async function createUser(email: string, name: string): Promise<MemoryUser> {
+export async function createUser(
+  email: string,
+  name: string,
+  details?: { firstName?: string; lastName?: string; mobileNumber?: string }
+): Promise<MemoryUser> {
   const normalizedEmail = email.toLowerCase().trim();
   const { isConnected } = await connectToDatabase();
+
+  const firstName = details?.firstName?.trim() || "";
+  const lastName = details?.lastName?.trim() || "";
+  const mobileNumber = details?.mobileNumber?.trim() || "";
 
   if (isConnected) {
     const user = await User.create({
       email: normalizedEmail,
       name: name.trim(),
+      firstName,
+      lastName,
+      mobileNumber,
       isVerified: true,
     });
     return {
       id: user._id.toString(),
       email: user.email,
       name: user.name,
+      firstName: user.firstName || "",
+      lastName: user.lastName || "",
+      mobileNumber: user.mobileNumber || "",
       isVerified: user.isVerified,
       createdAt: user.createdAt,
     };
@@ -239,6 +262,9 @@ export async function createUser(email: string, name: string): Promise<MemoryUse
       id: `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       email: normalizedEmail,
       name: name.trim(),
+      firstName,
+      lastName,
+      mobileNumber,
       isVerified: true,
       createdAt: new Date(),
     };
@@ -247,11 +273,39 @@ export async function createUser(email: string, name: string): Promise<MemoryUse
   }
 }
 
-export async function getOrCreateUser(email: string, name?: string): Promise<MemoryUser> {
+export async function getOrCreateUser(
+  email: string,
+  name?: string,
+  details?: { firstName?: string; lastName?: string; mobileNumber?: string }
+): Promise<MemoryUser> {
   const existing = await findUserByEmail(email);
-  if (existing) return existing;
-  const derivedName = name || email.split("@")[0] || "User";
-  return createUser(email, derivedName);
+  if (existing) {
+    if (details && (details.firstName || details.lastName || details.mobileNumber)) {
+      const { isConnected } = await connectToDatabase();
+      const firstName = details.firstName?.trim() || existing.firstName || "";
+      const lastName = details.lastName?.trim() || existing.lastName || "";
+      const mobileNumber = details.mobileNumber?.trim() || existing.mobileNumber || "";
+      const updatedName = name?.trim() || existing.name;
+
+      if (isConnected) {
+        await User.findByIdAndUpdate(existing.id, {
+          $set: {
+            firstName,
+            lastName,
+            mobileNumber,
+            name: updatedName,
+          },
+        });
+      }
+      existing.firstName = firstName;
+      existing.lastName = lastName;
+      existing.mobileNumber = mobileNumber;
+      existing.name = updatedName;
+    }
+    return existing;
+  }
+  const derivedName = name || (details?.firstName ? `${details.firstName} ${details.lastName || ""}`.trim() : email.split("@")[0]) || "User";
+  return createUser(email, derivedName, details);
 }
 
 // -------------------------------------------------------------

@@ -3,6 +3,9 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 export interface IUser extends Document {
   email: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
+  mobileNumber?: string;
   avatar?: string;
   isVerified: boolean;
   createdAt: Date;
@@ -22,8 +25,26 @@ const UserSchema = new Schema<IUser>(
     name: {
       type: String,
       default: function (this: IUser) {
+        if (this.firstName) {
+          return `${this.firstName} ${this.lastName || ""}`.trim();
+        }
         return this.email.split("@")[0] || "User";
       },
+    },
+    firstName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    lastName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    mobileNumber: {
+      type: String,
+      trim: true,
+      default: "",
     },
     avatar: {
       type: String,

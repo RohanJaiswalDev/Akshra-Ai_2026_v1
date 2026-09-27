@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { randomInt } from "node:crypto";
-import { storeOtp, checkOtpRateLimit } from "@/lib/db-store";
+import { storeOtp, checkOtpRateLimit, findUserByEmail } from "@/lib/db-store";
 import { sendOtpEmail } from "@/lib/mailer";
 
 function getEmail(body: unknown) {
@@ -11,13 +11,38 @@ function getEmail(body: unknown) {
 
 export async function POST(req: Request) {
   try {
-    const email = getEmail(await req.json());
+    const rawBody: unknown = await req.json();
+    const email = getEmail(rawBody);
+    const type = typeof (rawBody as Record<string, unknown>)?.type === "string"
+      ? (rawBody as Record<string, unknown>).type
+      : "";
+    const name = typeof (rawBody as Record<string, unknown>)?.name === "string"
+      ? ((rawBody as Record<string, unknown>).name as string).trim()
+      : undefined;
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json(
         { success: false, error: "Please provide a valid email address." },
         { status: 400 }
       );
+    }
+
+    if (type === "signup") {
+      const existingUser = await findUserByEmail(email);
+      if (existingUser) {
+        return NextResponse.json(
+          { success: false, error: "An account with this email already exists. Please log in instead." },
+          { status: 400 }
+        );
+      }
+    } else if (type === "login") {
+      const existingUser = await findUserByEmail(email);
+      if (!existingUser) {
+        return NextResponse.json(
+          { success: false, error: "No account found with this email. Please sign up first." },
+          { status: 404 }
+        );
+      }
     }
 
     // Rate limiting: Max 3 OTP requests / 15 minutes / email
@@ -36,7 +61,7 @@ export async function POST(req: Request) {
     const otp = randomInt(100_000, 1_000_000).toString();
 
     // Send email using Nodemailer
-    const mailResult = await sendOtpEmail({ email, otp });
+    const mailResult = await sendOtpEmail({ email, otp, name });
 
     if (!mailResult.delivered && process.env.NODE_ENV === "production") {
       return NextResponse.json(

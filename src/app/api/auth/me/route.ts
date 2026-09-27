@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSessionCookie, getCurrentUserFromCookie } from "@/lib/auth";
+import { findUserById } from "@/lib/db-store";
 
 export async function GET() {
   try {
@@ -17,12 +18,17 @@ export async function GET() {
       console.warn("[auth/me] Non-critical cookie renewal warning:", cookieError);
     }
 
+    const userRecord = await findUserById(session.userId).catch(() => null);
+
     return NextResponse.json({
       authenticated: true,
       user: {
         id: session.userId,
         email: session.email,
-        name: session.name || session.email.split("@")[0],
+        name: userRecord?.name || session.name || session.email.split("@")[0],
+        firstName: userRecord?.firstName || session.firstName || "",
+        lastName: userRecord?.lastName || session.lastName || "",
+        mobileNumber: userRecord?.mobileNumber || session.mobileNumber || "",
       },
     }, { headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } });
   } catch (error) {
