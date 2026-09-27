@@ -1,7 +1,6 @@
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
 
-const JWT_SECRET = process.env.JWT_SECRET || "akshra-ai-super-secret-jwt-key-2026";
 export const COOKIE_NAME = "akshra_session";
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
 
@@ -9,6 +8,13 @@ export interface SessionPayload {
   userId: string;
   email: string;
   name?: string;
+}
+
+function getJwtSecret() {
+  const configuredSecret = process.env.JWT_SECRET?.trim();
+  if (configuredSecret) return configuredSecret;
+  if (process.env.NODE_ENV !== "production") return "akshra-ai-development-session-secret";
+  throw new Error("JWT_SECRET must be configured in production.");
 }
 
 export function signSessionToken(payload: SessionPayload): string {
@@ -20,14 +26,14 @@ export function signSessionToken(payload: SessionPayload): string {
     name: payload.name,
   };
 
-  return jwt.sign(cleanPayload, JWT_SECRET, {
+  return jwt.sign(cleanPayload, getJwtSecret(), {
     expiresIn: SESSION_MAX_AGE_SECONDS,
   });
 }
 
 export function verifySessionToken(token: string): SessionPayload | null {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as SessionPayload;
+    const decoded = jwt.verify(token, getJwtSecret()) as SessionPayload;
     return decoded;
   } catch {
     return null;

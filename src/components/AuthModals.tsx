@@ -35,12 +35,15 @@ export function AuthModal({
 
   // Reset modal state on open/close
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return;
+    const resetTimer = window.setTimeout(() => {
       setStep("email");
       setOtp("");
       setError(null);
       setInfoMessage(null);
-    }
+      setResendCountdown(0);
+    }, 0);
+    return () => window.clearTimeout(resetTimer);
   }, [isOpen]);
 
   // Countdown timer for resending OTP
@@ -83,8 +86,8 @@ export function AuthModal({
           ? `Dev Mode: Code is ${data.devOtp} (Check terminal/console).`
           : `Verification code sent to ${email.trim()}`
       );
-    } catch (err: any) {
-      setError(err.message || "Something went wrong. Please try again.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -113,8 +116,8 @@ export function AuthModal({
 
       onAuthSuccess(data.user);
       onClose();
-    } catch (err: any) {
-      setError(err.message || "Invalid or expired verification code.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Invalid or expired verification code.");
     } finally {
       setLoading(false);
     }

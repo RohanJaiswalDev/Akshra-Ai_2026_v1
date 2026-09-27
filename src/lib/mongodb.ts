@@ -9,7 +9,6 @@ interface MongooseCache {
 }
 
 declare global {
-  // eslint-disable-next-line no-var
   var mongooseCache: MongooseCache | undefined;
 }
 
@@ -42,10 +41,10 @@ export async function connectToDatabase(): Promise<{ isConnected: boolean; mongo
     cached.isAvailable = true;
     console.log("[MongoDB] Connected successfully to:", MONGODB_URI.split("@").pop()?.split("?")[0] || "database");
     return { isConnected: true, mongooseInstance: cached.conn };
-  } catch (error: any) {
+  } catch (error: unknown) {
     cached.promise = null;
     cached.isAvailable = false;
-    console.warn("[MongoDB] Could not connect to MongoDB:", error.message || error);
+    console.warn("[MongoDB] Could not connect to MongoDB:", error instanceof Error ? error.message : error);
     console.warn("[MongoDB] Using active Dev Memory Store. Add your MongoDB Atlas connection string in .env.local to persist.");
     return { isConnected: false };
   }

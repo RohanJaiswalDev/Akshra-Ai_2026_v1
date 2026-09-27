@@ -18,12 +18,13 @@ import {
 } from "lucide-react";
 import { ThemeSelector } from "./ThemeSelector";
 import { type AuthUser } from "./AuthModals";
+import type { Message } from "./ChatMessages";
 import { usePWA } from "./PWAProvider";
 
 export interface SavedChat {
   id: string;
   title: string;
-  messages: any[];
+  messages: Message[];
   updatedAt: string;
 }
 

@@ -55,7 +55,8 @@ export default function Home() {
 
   // Load history toggle, sidebar state, model, and saved chats from localStorage on mount
   useEffect(() => {
-    try {
+    const initializeFromStorage = () => {
+      try {
       // Default history to TRUE unless explicitly turned off
       const savedToggle = localStorage.getItem("akshra_history_enabled");
       const enabled = savedToggle !== "false";
@@ -90,9 +91,13 @@ export default function Home() {
       if (savedModel) {
         setSelectedModel(savedModel);
       }
-    } catch (e) {
-      console.error("Failed to load local settings:", e);
-    }
+      } catch (e) {
+        console.error("Failed to load local settings:", e);
+      }
+    };
+
+    const frame = window.requestAnimationFrame(initializeFromStorage);
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   // Helper to reliably save chat to state and localStorage
@@ -377,12 +382,16 @@ export default function Home() {
         let errorDetails = "Failed to connect to OpenRouter.";
         let retryable = false;
         try {
-          const errData = await response.json();
-          if (errData?.error) errorDetails = errData.error;
-          retryable = errData?.retryable === true;
+          const responseText = await response.text();
+          const parsed: unknown = JSON.parse(responseText);
+          if (parsed && typeof parsed === "object") {
+            const error = (parsed as Record<string, unknown>).error;
+            const canRetry = (parsed as Record<string, unknown>).retryable;
+            if (typeof error === "string") errorDetails = error;
+            retryable = canRetry === true;
+          }
         } catch {
-          const raw = await response.text();
-          if (raw) errorDetails = raw;
+          // The server intentionally returns concise JSON errors; use the safe fallback above.
         }
 
         const errorMsg: Message = {
@@ -439,6 +448,9 @@ export default function Home() {
           });
         }
       }
+
+      const finalChunk = decoder.decode();
+      if (finalChunk) accumulated += finalChunk;
 
       if (rafId) {
         cancelAnimationFrame(rafId);
@@ -663,8 +675,6 @@ export default function Home() {
         isHistoryEnabled={isHistoryEnabled}
         onToggleHistory={handleToggleHistory}
         onClearHistory={handleClearHistory}
-        selectedModel={selectedModel}
-        onSelectModel={handleSelectModel}
       />
 
       {/* Real-time Voice Assistant Modal (ChatGPT & Gemini Live style) */}

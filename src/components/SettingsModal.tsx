@@ -1,8 +1,7 @@
 "use client";
 
 import React from "react";
-import { X, Trash2, Sparkles, Download, CheckCircle2 } from "lucide-react";
-import { useTheme } from "next-themes";
+import { X, Trash2, Download, CheckCircle2 } from "lucide-react";
 import { ThemeSelector } from "./ThemeSelector";
 import { usePWA } from "./PWAProvider";
 
@@ -12,8 +11,6 @@ interface SettingsModalProps {
   isHistoryEnabled: boolean;
   onToggleHistory: (enabled: boolean) => void;
   onClearHistory?: () => void;
-  selectedModel?: string;
-  onSelectModel?: (modelId: string) => void;
 }
 
 export function SettingsModal({
@@ -22,10 +19,7 @@ export function SettingsModal({
   isHistoryEnabled,
   onToggleHistory,
   onClearHistory,
-  selectedModel,
-  onSelectModel,
 }: SettingsModalProps) {
-  const { theme } = useTheme();
   const { isInstalled, promptInstall } = usePWA();
 
   if (!isOpen) return null;
@@ -145,7 +139,7 @@ export function SettingsModal({
             <div className="flex items-center gap-1.5 font-medium text-neutral-700 dark:text-neutral-300">
               <span>Akshra Ai</span>
             </div>
-            <p>Developed by <a href="https://www.rohanjaiswal.co.in " target="_blank" className="text-blue-500 dark:text-blue-400 hover:underline">www.rohanjaiswal.co.in</a></p>
+            <p>Developed by <a href="https://www.rohanjaiswal.co.in" target="_blank" rel="noreferrer" className="text-blue-500 dark:text-blue-400 hover:underline">www.rohanjaiswal.co.in</a></p>
           </div>
         </div>
 

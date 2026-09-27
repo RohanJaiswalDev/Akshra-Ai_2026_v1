@@ -18,7 +18,6 @@ export function ChatLanding({
   user,
   isAuthLoading = false,
   onOpenLogin,
-  onOpenSignup,
   onOpenVoice,
 }: ChatLandingProps) {
   const [input, setInput] = useState("");

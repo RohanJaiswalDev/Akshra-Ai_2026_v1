@@ -12,6 +12,9 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({
   content,
   isStreaming,
 }: MarkdownRendererProps) {
+  // Keep hooks before every conditional return so streaming state cannot change hook order.
+  const segments = React.useMemo(() => parseContent(content), [content]);
+
   // If content is empty while streaming, show single thin cursor perfectly centered
   if (!content || !content.trim()) {
     return (
@@ -22,9 +25,6 @@ export const MarkdownRenderer = React.memo(function MarkdownRenderer({
       </div>
     );
   }
-
-  // Parse message into code blocks and markdown text segments (memoized)
-  const segments = React.useMemo(() => parseContent(content), [content]);
 
   return (
     <div className="space-y-3 font-sans text-sm sm:text-[15px] leading-7">

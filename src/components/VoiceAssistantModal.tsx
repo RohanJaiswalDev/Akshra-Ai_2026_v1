@@ -306,7 +306,7 @@ export function VoiceAssistantModal({
                 Live
               </span>
             </h2>
-            <p className="text-xs text-neutral-400">Natural full-duplex conversation</p>
+            <p className="text-xs text-neutral-400">Live streamed conversation</p>
           </div>
         </div>
 
@@ -355,9 +355,18 @@ export function VoiceAssistantModal({
         {/* Live Subtitles / Transcription Feed */}
         <div className="w-full max-w-xl mx-auto px-4 text-center mt-2 min-h-[70px] flex flex-col items-center justify-center">
           {errorMessage ? (
-            <p className="text-sm text-red-400 bg-red-950/40 border border-red-800/50 px-4 py-2 rounded-xl">
-              {errorMessage}
-            </p>
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-sm text-red-400 bg-red-950/40 border border-red-800/50 px-4 py-2 rounded-xl">
+                {errorMessage}
+              </p>
+              <button
+                type="button"
+                onClick={() => void startSession()}
+                className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1.5 text-xs font-medium text-cyan-200 transition hover:bg-cyan-500/20"
+              >
+                Try again
+              </button>
+            </div>
           ) : status === "speaking" && assistantTranscript ? (
             <p className="text-sm sm:text-base text-neutral-200 font-medium line-clamp-3 leading-relaxed animate-in fade-in duration-200">
               &ldquo;{assistantTranscript}&rdquo;

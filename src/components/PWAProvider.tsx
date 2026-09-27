@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { X, Share, PlusSquare, Download, CheckCircle2, Smartphone } from "lucide-react";
+import { X, Share, PlusSquare } from "lucide-react";
 import { AkshraLogo } from "./icons";
 
 interface BeforeInstallPromptEvent extends Event {
@@ -34,35 +34,31 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
   const [showIOSModal, setShowIOSModal] = useState(false);
 
   useEffect(() => {
-    // 1. Register Service Worker
-    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker
-          .register("/sw.js")
-          .then((reg) => {
-            console.log("Akshra Ai Service Worker registered:", reg.scope);
-          })
-          .catch((err) => {
-            console.error("Service Worker registration failed:", err);
-          });
+    const registerServiceWorker = () => {
+      if (!("serviceWorker" in navigator)) return;
+      void navigator.serviceWorker.register("/sw.js").catch((error: unknown) => {
+        console.error("Service Worker registration failed:", error);
       });
+    };
+
+    if (document.readyState === "complete") {
+      registerServiceWorker();
+    } else {
+      window.addEventListener("load", registerServiceWorker, { once: true });
     }
 
-    // 2. Check if already running in standalone display mode
-    if (typeof window !== "undefined") {
+    const setupFrame = window.requestAnimationFrame(() => {
       const isStandalone =
         window.matchMedia("(display-mode: standalone)").matches ||
         (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
         document.referrer.includes("android-app://");
       setIsInstalled(Boolean(isStandalone));
 
-      // 3. Detect iOS
       const userAgent = window.navigator.userAgent.toLowerCase();
       const isAppleMobile = /iphone|ipad|ipod/.test(userAgent);
       setIsIOS(isAppleMobile);
-    }
+    });
 
-    // 4. Capture native install prompt for Chrome/Edge/Android/Desktop
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
@@ -78,6 +74,8 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener("appinstalled", handleAppInstalled);
 
     return () => {
+      window.cancelAnimationFrame(setupFrame);
+      window.removeEventListener("load", registerServiceWorker);
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
       window.removeEventListener("appinstalled", handleAppInstalled);
     };

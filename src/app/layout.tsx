@@ -64,7 +64,7 @@ export default function RootLayout({
         <link rel="icon" href="/icons/favicon-32x32.png" type="image/png" sizes="32x32" />
         <link rel="icon" href="/icons/favicon-16x16.png" type="image/png" sizes="16x16" />
         <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml" />
-        <link rel="manifest" href="/manifest.json" />
+        <link rel="manifest" href="/manifest.webmanifest" />
         <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />

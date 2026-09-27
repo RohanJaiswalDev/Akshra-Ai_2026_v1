@@ -18,17 +18,16 @@ export async function sendOtpEmail({ email, otp }: SendOtpMailParams): Promise<{
     process.env.EMAIL_FROM ||
     (user ? `"Akshra Ai" <${user}>` : "Akshra Ai <noreply@akshra.ai>");
 
-  console.log(`[Akshra Ai Auth] ══════════════════════════════════════`);
-  console.log(`[Akshra Ai Auth] Verification OTP for ${email}: [ ${otp} ]`);
-  console.log(`[Akshra Ai Auth] Valid for 10 minutes.`);
-  console.log(`[Akshra Ai Auth] Service: ${service} | From: ${from}`);
-  console.log(`[Akshra Ai Auth] ══════════════════════════════════════`);
+  const isDevelopment = process.env.NODE_ENV !== "production";
+  if (isDevelopment) {
+    console.log(`[Akshra Ai Auth] Development OTP for ${email}: ${otp}`);
+  }
 
   // If credentials are not configured, return dev fallback
   if (!user || !pass) {
-    console.log(
-      "[Nodemailer] SMTP credentials (SMTP_USER, SMTP_PASS) not configured in .env.local. (OTP printed above for dev testing)"
-    );
+    if (isDevelopment) {
+      console.log("[Nodemailer] SMTP credentials are not configured; using the development OTP fallback.");
+    }
     return { delivered: false };
   }
 
@@ -100,7 +99,7 @@ export async function sendOtpEmail({ email, otp }: SendOtpMailParams): Promise<{
       html,
     });
 
-    console.log(`[Nodemailer] Email dispatched successfully! ID: ${info.messageId}`);
+    console.log(`[Nodemailer] Verification email dispatched. ID: ${info.messageId}`);
     return { delivered: true, messageId: info.messageId };
   } catch (error) {
     console.error("[Nodemailer] Failed to send email via SMTP:", error);

@@ -1,10 +1,10 @@
 // Akshra Ai - Progressive Web App Service Worker
-const CACHE_NAME = "akshra-ai-pwa-v2";
+const CACHE_NAME = "akshra-ai-pwa-v3";
 
 const PRECACHE_ASSETS = [
   "/",
   "/favicon.ico",
-  "/manifest.json",
+  "/manifest.webmanifest",
   "/icons/icon-192x192.png",
   "/icons/icon-512x512.png",
   "/icons/icon-maskable-192x192.png",

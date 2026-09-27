@@ -1,5 +1,5 @@
 import { connectToDatabase } from "./mongodb";
-import { User, IUser } from "@/models/User";
+import { User } from "@/models/User";
 import { Otp } from "@/models/Otp";
 
 interface MemoryUser {
@@ -18,9 +18,7 @@ interface MemoryOtp {
 
 // In-memory fallback stores for when local MongoDB is not running
 declare global {
-  // eslint-disable-next-line no-var
   var __memoryUsers: Map<string, MemoryUser> | undefined;
-  // eslint-disable-next-line no-var
   var __memoryOtps: Map<string, MemoryOtp> | undefined;
 }
 
@@ -50,7 +48,8 @@ export async function checkOtp(email: string, otp: string): Promise<boolean> {
   const { isConnected } = await connectToDatabase();
 
   if (isConnected) {
-    const record = await Otp.findOne({ email, otp });
+    const validAfter = new Date(Date.now() - 10 * 60 * 1000);
+    const record = await Otp.findOne({ email, otp, createdAt: { $gt: validAfter } });
     if (!record) return false;
     await Otp.deleteMany({ email });
     return true;
