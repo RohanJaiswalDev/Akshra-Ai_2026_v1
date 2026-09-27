@@ -1,0 +1,348 @@
+Phase 1 — Fix the foundation first 🔧
+
+There is one architectural issue I would address before adding many new features.
+
+1. Move chat history from global localStorage to user-scoped storage
+
+Currently your chat history uses:
+
+akshra_chat_history
+
+and stores complete conversations in localStorage.
+
+That means the history is browser/device-level, not truly account-level.
+
+This creates an important scenario:
+
+User A
+→ logs in
+→ has chats
+→ logs out
+
+User B
+→ logs in on the same browser
+→ can potentially encounter the same locally stored history.
+
+Your UI says:
+
+“Sign in to save and sync your conversations with Akshra Ai”
+
+but the current implementation does not actually sync conversation history through MongoDB. The sidebar is consuming locally stored chats.
+
+Better architecture
+User
+  ↓
+Session
+  ↓
+MongoDB
+  ├── User
+  ├── Chat
+  │    ├── title
+  │    ├── model
+  │    ├── messages
+  │    ├── createdAt
+  │    └── updatedAt
+  │
+  └── OTP
+
+Then:
+
+Browser
+   ↓
+POST /api/chats
+   ↓
+MongoDB
+
+The sidebar becomes a real synchronized account feature.
+
+This single change will make Akshra feel much more like a real SaaS product.
+
+Phase 2 — Make the Chat experience much better 💬
+2. Conversation rename
+
+Instead of only:
+
+“Write a React hook for debounce...”
+
+allow:
+
+Rename
+Delete
+Archive
+Pin
+Share
+
+Example:
+
+My Next.js Project
+
+Rename
+Pin
+Archive
+Delete
+3. Search conversations
+
+Add:
+
+🔍 Search chats
+
+Search:
+
+React
+MongoDB
+Insurance
+Python
+Next.js
+
+This becomes extremely useful once a user has hundreds of conversations.
+
+4. Chat folders
+
+Example:
+
+Chats
+
+📁 Development
+   ├─ Next.js authentication
+   ├─ MongoDB schema
+   └─ React hooks
+
+📁 Learning
+   ├─ Python
+   ├─ Statistics
+   └─ SQL
+
+📁 Personal
+
+This could become one of Akshra's strongest productivity features.
+
+Phase 3 — Improve model selection 🧠
+
+Currently models are defined in a simple static array with properties such as provider, badge, and description.
+
+That is perfectly fine for your current stage.
+
+But make the selector more intelligent.
+
+Instead of:
+
+DeepSeek V3
+DeepSeek R1
+Gemini
+Llama
+GPT
+Claude
+
+show:
+
+Choose model
+
+⚡ Fast
+DeepSeek V3
+Best for everyday tasks
+
+🧠 Reasoning
+DeepSeek R1
+Complex reasoning
+
+💻 Coding
+Claude
+Programming & debugging
+
+🎯 General
+GPT
+Balanced assistant
+
+And eventually:
+
+Automatic model routing
+
+User asks:
+
+“Fix this React bug”
+
+Akshra automatically selects a coding-oriented model.
+
+User asks:
+
+“Summarize this”
+
+Akshra uses a faster model.
+
+User asks:
+
+“Solve this complex mathematical problem”
+
+Akshra selects a reasoning model.
+
+That creates a much more interesting product.
+
+Phase 4 — Give Akshra a memory system 🧠✨
+
+This would be a major differentiator.
+
+Add:
+
+Akshra Memory
+What Akshra remembers
+
+• User prefers TypeScript
+• User works with Next.js
+• User prefers concise answers
+
+Then let users control it:
+
+Memory
+
+[✓] Allow Akshra to remember preferences
+
+Manage memories
+Clear all memories
+
+And individual messages could offer:
+
+Remember this
+
+This is much more valuable than adding dozens of novelty buttons.
+
+
+Phase 5 — Upgrade Voice Mode 🎙️
+
+Your current voice implementation is already surprisingly sophisticated.
+
+The next step isn't simply “more voice.”
+
+It's conversation quality.
+
+I would add:
+
+Voice personalities
+Voice
+
+Natural
+Professional
+Friendly
+Teacher
+Developer
+Voice settings
+Speech speed
+Voice
+Language
+Auto listen
+Interrupt response
+Multilingual voice
+
+Since your current recognizer uses navigator.language, you already have a foundation for language-sensitive recognition.
+
+Eventually:
+
+English
+Hindi
+Hinglish
+Spanish
+French
+...
+Phase 6 — Improve the authentication/security layer 🔐
+
+The current authentication foundation is good, but before production scale I'd strengthen it.
+
+OTP rate limiting
+
+Currently the client has a 60-second resend countdown, but the server should independently enforce limits.
+
+For example:
+
+3 OTP requests / 15 minutes / email
+10 verification attempts / 15 minutes
+
+Otherwise a malicious client can simply bypass the UI timer.
+
+Don't store OTP plaintext
+
+Your MongoDB OTP record currently stores the OTP directly.
+
+A production-grade approach is:
+
+OTP
+ ↓
+hash
+ ↓
+MongoDB
+
+Then compare the submitted OTP against the hash.
+
+Session strategy
+
+Your session is configured for roughly one year and /api/auth/me renews the cookie.
+
+I'd consider separating:
+
+short-lived access session
++
+rotating refresh/session mechanism
+
+with revocation capability for security-sensitive environments.
+
+Phase 7 — Make Settings much more powerful ⚙️
+
+You already have:
+
+Theme
+Read mode
+Chat history
+Clear history
+PWA install
+
+which is a solid base.
+
+Expand it into:
+
+Settings
+
+Account
+Appearance
+Chat
+Models
+Voice
+Memory
+Privacy
+Notifications
+Data
+Keyboard shortcuts
+About
+🎨 Your visual direction
+
+I actually like your current design direction.
+
+You're using a restrained neutral palette:
+
+Light
+#ffffff
+#f9f9f9
+
+Dark
+#212121
+#171717
+
+and a warm reading mode.
+
+That is consistent with the minimalist AI-product aesthetic you're targeting.
+
+Keep
+
+✅ black/white foundation
+✅ subtle borders
+✅ rounded controls
+✅ restrained animations
+✅ clean typography
+✅ lots of whitespace
+
+Avoid
+
+❌ excessive gradients
+❌ glowing neon UI everywhere
+❌ too many colors
+❌ excessive glassmorphism
+❌ every button becoming a giant card
+
+Akshra would benefit from quiet, premium UI.

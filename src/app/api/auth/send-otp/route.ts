@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { randomInt } from "node:crypto";
-import { storeOtp } from "@/lib/db-store";
+import { storeOtp, checkOtpRateLimit } from "@/lib/db-store";
 import { sendOtpEmail } from "@/lib/mailer";
 
 function getEmail(body: unknown) {
@@ -20,6 +20,18 @@ export async function POST(req: Request) {
       );
     }
 
+    // Rate limiting: Max 3 OTP requests / 15 minutes / email
+    const rateLimit = checkOtpRateLimit(email);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Too many verification requests. Please wait ${rateLimit.waitSeconds || 60} seconds before requesting another code.`,
+        },
+        { status: 429 }
+      );
+    }
+
     // Generate 6-digit numeric OTP
     const otp = randomInt(100_000, 1_000_000).toString();
 
@@ -33,7 +45,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Store an OTP only after it can be delivered (or in explicit development mode).
+    // Store an OTP securely
     await storeOtp(email, otp);
 
     return NextResponse.json({

@@ -37,6 +37,14 @@ export default function Home() {
   const isHistoryEnabledRef = useRef(true);
   const [chatHistory, setChatHistory] = useState<SavedChat[]>([]);
 
+  // Voice & Memory settings
+  const [voicePersonality, setVoicePersonality] = useState<
+    "natural" | "professional" | "friendly" | "teacher" | "developer"
+  >("natural");
+  const [voiceSpeechRate, setVoiceSpeechRate] = useState<number>(1.05);
+  const [voiceLanguage, setVoiceLanguage] = useState<string>("en-US");
+  const [isMemoryEnabled, setIsMemoryEnabled] = useState<boolean>(true);
+
   // Auth & Settings Modal states
   const [authModal, setAuthModal] = useState<{
     isOpen: boolean;
@@ -53,44 +61,78 @@ export default function Home() {
     isHistoryEnabledRef.current = isHistoryEnabled;
   }, [isHistoryEnabled]);
 
-  // Load history toggle, sidebar state, model, and saved chats from localStorage on mount
+  // Load history toggle, sidebar state, model, voice settings, and saved chats from localStorage on mount
   useEffect(() => {
     const initializeFromStorage = () => {
       try {
-      // Default history to TRUE unless explicitly turned off
-      const savedToggle = localStorage.getItem("akshra_history_enabled");
-      const enabled = savedToggle !== "false";
-      setIsHistoryEnabled(enabled);
-      isHistoryEnabledRef.current = enabled;
+        // Default history to TRUE unless explicitly turned off
+        const savedToggle = localStorage.getItem("akshra_history_enabled");
+        const enabled = savedToggle !== "false";
+        setIsHistoryEnabled(enabled);
+        isHistoryEnabledRef.current = enabled;
 
-      // Load sidebar state (default to closed on mobile < 768px, open on desktop >= 768px)
-      const savedSidebar = localStorage.getItem("akshra_sidebar_open");
-      if (typeof window !== "undefined" && window.innerWidth < 768) {
-        setIsSidebarOpen(false);
-      } else if (savedSidebar !== null) {
-        setIsSidebarOpen(savedSidebar === "true");
-      } else if (typeof window !== "undefined") {
-        setIsSidebarOpen(window.innerWidth >= 768);
-      }
-
-      // Load saved chat history
-      const savedList = localStorage.getItem("akshra_chat_history");
-      if (savedList) {
-        try {
-          const parsed = JSON.parse(savedList);
-          if (Array.isArray(parsed)) {
-            setChatHistory(parsed);
-          }
-        } catch (e) {
-          console.error("Failed to parse saved chat history:", e);
+        // Load sidebar state (default to closed on mobile < 768px, open on desktop >= 768px)
+        const savedSidebar = localStorage.getItem("akshra_sidebar_open");
+        if (typeof window !== "undefined" && window.innerWidth < 768) {
+          setIsSidebarOpen(false);
+        } else if (savedSidebar !== null) {
+          setIsSidebarOpen(savedSidebar === "true");
+        } else if (typeof window !== "undefined") {
+          setIsSidebarOpen(window.innerWidth >= 768);
         }
-      }
 
-      // Load saved model
-      const savedModel = localStorage.getItem("akshra_selected_model");
-      if (savedModel) {
-        setSelectedModel(savedModel);
-      }
+        // Load saved chat history
+        const savedList = localStorage.getItem("akshra_chat_history");
+        if (savedList) {
+          try {
+            const parsed = JSON.parse(savedList);
+            if (Array.isArray(parsed)) {
+              setChatHistory(parsed);
+            }
+          } catch (e) {
+            console.error("Failed to parse saved chat history:", e);
+          }
+        }
+
+        // Load saved model
+        const savedModel = localStorage.getItem("akshra_selected_model");
+        if (savedModel) {
+          setSelectedModel(savedModel);
+        }
+
+        // Load voice personality
+        const savedPersonality = localStorage.getItem("akshra_voice_personality");
+        if (
+          savedPersonality &&
+          ["natural", "professional", "friendly", "teacher", "developer"].includes(
+            savedPersonality
+          )
+        ) {
+          setVoicePersonality(
+            savedPersonality as "natural" | "professional" | "friendly" | "teacher" | "developer"
+          );
+        }
+
+        // Load voice speech rate
+        const savedRate = localStorage.getItem("akshra_voice_rate");
+        if (savedRate) {
+          const parsedRate = parseFloat(savedRate);
+          if (!isNaN(parsedRate) && parsedRate >= 0.8 && parsedRate <= 1.3) {
+            setVoiceSpeechRate(parsedRate);
+          }
+        }
+
+        // Load voice language
+        const savedLang = localStorage.getItem("akshra_voice_lang");
+        if (savedLang) {
+          setVoiceLanguage(savedLang);
+        }
+
+        // Load memory setting
+        const savedMemory = localStorage.getItem("akshra_memory_enabled");
+        if (savedMemory !== null) {
+          setIsMemoryEnabled(savedMemory !== "false");
+        }
       } catch (e) {
         console.error("Failed to load local settings:", e);
       }
@@ -100,7 +142,32 @@ export default function Home() {
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
-  // Helper to reliably save chat to state and localStorage
+  // Fetch account-scoped chats from database when authenticated
+  useEffect(() => {
+    let isMounted = true;
+    if (user) {
+      fetch("/api/chats")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (isMounted && data && Array.isArray(data.chats)) {
+            setChatHistory(data.chats);
+            try {
+              localStorage.setItem("akshra_chat_history", JSON.stringify(data.chats));
+            } catch {
+              // ignore
+            }
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to load user chats from server:", err);
+        });
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
+  // Helper to reliably save chat to state and sync with backend
   const saveChatToHistory = (
     chatId: string,
     titleText: string,
@@ -108,9 +175,10 @@ export default function Home() {
   ) => {
     if (!isHistoryEnabledRef.current) return;
 
+    const title =
+      titleText.length > 28 ? titleText.substring(0, 28) + "..." : titleText;
+
     setChatHistory((prev) => {
-      const title =
-        titleText.length > 28 ? titleText.substring(0, 28) + "..." : titleText;
       const existingIndex = prev.findIndex((c) => c.id === chatId);
       let updated: SavedChat[];
 
@@ -128,6 +196,10 @@ export default function Home() {
             title: title || "New Conversation",
             messages: chatMessages,
             updatedAt: "Just now",
+            folder: "general",
+            isPinned: false,
+            isArchived: false,
+            model: selectedModel,
           },
           ...prev,
         ];
@@ -140,6 +212,22 @@ export default function Home() {
       }
       return updated;
     });
+
+    // Server-side MongoDB sync when authenticated
+    if (user) {
+      fetch("/api/chats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: chatId,
+          title: title || "New Conversation",
+          messages: chatMessages,
+          model: selectedModel,
+        }),
+      }).catch((err) => {
+        console.error("Failed to sync chat to server:", err);
+      });
+    }
   };
 
   // Toggle sidebar and persist state
@@ -176,17 +264,6 @@ export default function Home() {
     }
   };
 
-  // Clear all saved history
-  const handleClearHistory = () => {
-    setChatHistory([]);
-    try {
-      localStorage.removeItem("akshra_chat_history");
-    } catch (e) {
-      console.error(e);
-    }
-    handleNewChat();
-  };
-
   // Select chat from sidebar
   const handleSelectChat = (chat: SavedChat) => {
     if (abortControllerRef.current) {
@@ -198,6 +275,22 @@ export default function Home() {
     setIsStreaming(false);
 
     // Auto-close sidebar drawer on mobile upon selecting a chat
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setIsSidebarOpen(false);
+    }
+  };
+
+  // Handle New Chat: resets to landing view
+  const handleNewChat = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setActiveChatId(null);
+    setMessages([]);
+    setIsStreaming(false);
+
+    // Auto-close sidebar drawer on mobile upon starting a new chat
     if (typeof window !== "undefined" && window.innerWidth < 768) {
       setIsSidebarOpen(false);
     }
@@ -215,8 +308,151 @@ export default function Home() {
       return updated;
     });
 
+    if (user) {
+      fetch(`/api/chats/${chatId}`, { method: "DELETE" }).catch(console.error);
+    }
+
     if (activeChatId === chatId) {
       handleNewChat();
+    }
+  };
+
+  // Rename chat
+  const handleRenameChat = (chatId: string, newTitle: string) => {
+    setChatHistory((prev) => {
+      const updated = prev.map((c) => (c.id === chatId ? { ...c, title: newTitle } : c));
+      try {
+        localStorage.setItem("akshra_chat_history", JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+
+    if (user) {
+      fetch(`/api/chats/${chatId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: newTitle }),
+      }).catch(console.error);
+    }
+  };
+
+  // Pin / Unpin chat
+  const handlePinChat = (chatId: string, isPinned: boolean) => {
+    setChatHistory((prev) => {
+      const updated = prev.map((c) => (c.id === chatId ? { ...c, isPinned } : c));
+      try {
+        localStorage.setItem("akshra_chat_history", JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+
+    if (user) {
+      fetch(`/api/chats/${chatId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPinned }),
+      }).catch(console.error);
+    }
+  };
+
+  // Archive / Unarchive chat
+  const handleArchiveChat = (chatId: string, isArchived: boolean) => {
+    setChatHistory((prev) => {
+      const updated = prev.map((c) => (c.id === chatId ? { ...c, isArchived } : c));
+      try {
+        localStorage.setItem("akshra_chat_history", JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+
+    if (user) {
+      fetch(`/api/chats/${chatId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isArchived }),
+      }).catch(console.error);
+    }
+  };
+
+  // Move chat to folder
+  const handleMoveFolder = (chatId: string, folder: string) => {
+    setChatHistory((prev) => {
+      const updated = prev.map((c) => (c.id === chatId ? { ...c, folder } : c));
+      try {
+        localStorage.setItem("akshra_chat_history", JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+
+    if (user) {
+      fetch(`/api/chats/${chatId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folder }),
+      }).catch(console.error);
+    }
+  };
+
+  // Clear all saved history
+  const handleClearHistory = () => {
+    setChatHistory([]);
+    try {
+      localStorage.removeItem("akshra_chat_history");
+    } catch (e) {
+      console.error(e);
+    }
+
+    if (user) {
+      fetch("/api/chats", { method: "DELETE" }).catch(console.error);
+    }
+
+    handleNewChat();
+  };
+
+  // Voice personality and settings handlers
+  const handleSelectVoicePersonality = (
+    p: "natural" | "professional" | "friendly" | "teacher" | "developer"
+  ) => {
+    setVoicePersonality(p);
+    try {
+      localStorage.setItem("akshra_voice_personality", p);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleSelectVoiceSpeechRate = (rate: number) => {
+    setVoiceSpeechRate(rate);
+    try {
+      localStorage.setItem("akshra_voice_rate", rate.toString());
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleSelectVoiceLanguage = (lang: string) => {
+    setVoiceLanguage(lang);
+    try {
+      localStorage.setItem("akshra_voice_lang", lang);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleToggleMemory = (enabled: boolean) => {
+    setIsMemoryEnabled(enabled);
+    try {
+      localStorage.setItem("akshra_memory_enabled", enabled.toString());
+    } catch {
+      // ignore
     }
   };
 
@@ -249,7 +485,7 @@ export default function Home() {
     };
     checkSession();
 
-    // Cross-tab synchronization: keep login/logout state synchronized if changed in another tab
+    // Cross-tab synchronization
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === "akshra_auth_user") {
         if (e.newValue) {
@@ -267,7 +503,7 @@ export default function Home() {
     return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
 
-  // Handle Logout: clear session cookie, clear localStorage, and reset chat view
+  // Handle Logout: clear session cookie, clear localStorage, wipe chat state for isolation
   const handleLogout = async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
@@ -275,28 +511,14 @@ export default function Home() {
       console.error("Failed to logout:", err);
     } finally {
       setUser(null);
+      setChatHistory([]);
       try {
         localStorage.removeItem("akshra_auth_user");
+        localStorage.removeItem("akshra_chat_history");
       } catch (e) {
         console.error(e);
       }
       handleNewChat();
-    }
-  };
-
-  // Handle New Chat: resets to landing view
-  const handleNewChat = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-    setActiveChatId(null);
-    setMessages([]);
-    setIsStreaming(false);
-
-    // Auto-close sidebar drawer on mobile upon starting a new chat
-    if (typeof window !== "undefined" && window.innerWidth < 768) {
-      setIsSidebarOpen(false);
     }
   };
 
@@ -410,8 +632,6 @@ export default function Home() {
         );
         setIsStreaming(false);
         abortControllerRef.current = null;
-
-        // Keep the prompt in history, but never save a provider error as an AI answer.
         return;
       }
 
@@ -471,10 +691,9 @@ export default function Home() {
       setIsStreaming(false);
       abortControllerRef.current = null;
 
-      // Finalize and persist completed chat to history
+      // Finalize and persist completed chat to history & database
       saveChatToHistory(currentId, text, [...newMessages, finalBotMsg]);
     } catch (err: unknown) {
-      // If user aborted via stop button, finalize gracefully and save partial chat
       if (
         (err instanceof Error && err.name === "AbortError") ||
         controller.signal.aborted
@@ -520,7 +739,9 @@ export default function Home() {
     setMessages(updatedMessages);
 
     if (activeChatId) {
-      const firstPrompt = updatedMessages.find((message) => message.role === "user")?.content || "New Conversation";
+      const firstPrompt =
+        updatedMessages.find((message) => message.role === "user")?.content ||
+        "New Conversation";
       saveChatToHistory(activeChatId, firstPrompt, updatedMessages);
     }
   };
@@ -544,7 +765,6 @@ export default function Home() {
     }
 
     if (lastUserIndex >= 0) {
-      // Resend the source prompt once, with only preceding messages as context.
       const lastUserMsg = messages[lastUserIndex];
       handleSendMessage(lastUserMsg.content, messages.slice(0, lastUserIndex));
     }
@@ -575,15 +795,32 @@ export default function Home() {
 
     setMessages((prev) => {
       const updated = [...prev, newMsg];
-      const titlePrompt = updated.find((m) => m.role === "user")?.content || "Voice Conversation";
+      const titlePrompt =
+        updated.find((m) => m.role === "user")?.content || "Voice Conversation";
       saveChatToHistory(currentId, titlePrompt, updated);
       return updated;
     });
   };
 
+  // Keyboard shortcuts listener: Ctrl+K for new chat, Esc for close modals
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        handleNewChat();
+      } else if (e.key === "Escape") {
+        if (isSettingsOpen) setIsSettingsOpen(false);
+        if (authModal.isOpen) setAuthModal({ isOpen: false, mode: "login" });
+        if (isVoiceOpen) setIsVoiceOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [authModal.isOpen, isSettingsOpen, isVoiceOpen]);
+
   return (
     <div className="relative h-screen h-[100dvh] flex w-full bg-[var(--canvas-bg)] text-[var(--canvas-fg)] overflow-hidden transition-colors duration-200">
-      {/* Sidebar (Collapsed Rail & Expanded Drawer with dynamic History support) */}
+      {/* Sidebar with Search, Folders, Pinned Chats & Inline Renaming */}
       <Sidebar
         isOpen={isSidebarOpen}
         onToggle={handleToggleSidebar}
@@ -594,6 +831,10 @@ export default function Home() {
         activeChatId={activeChatId}
         onSelectChat={handleSelectChat}
         onDeleteChat={handleDeleteChat}
+        onRenameChat={handleRenameChat}
+        onPinChat={handlePinChat}
+        onArchiveChat={handleArchiveChat}
+        onMoveFolder={handleMoveFolder}
         user={user}
         onLogout={handleLogout}
         onOpenLogin={() => setAuthModal({ isOpen: true, mode: "login" })}
@@ -605,7 +846,7 @@ export default function Home() {
         className={`flex-1 flex flex-col h-full min-h-0 overflow-hidden transition-[padding] duration-200 ease-in-out ${isSidebarOpen ? "md:pl-[260px]" : "md:pl-14 sm:md:pl-16"
           }`}
       >
-        {/* Top Header with Model Selector */}
+        {/* Top Header with Grouped Model Selector */}
         <Header
           onOpenLogin={() => setAuthModal({ isOpen: true, mode: "login" })}
           onOpenSignup={() => setAuthModal({ isOpen: true, mode: "signup" })}
@@ -645,7 +886,7 @@ export default function Home() {
         </main>
       </div>
 
-      {/* Auth Modals (Log in & Sign up for free with genuine email OTP) */}
+      {/* Auth Modals */}
       <AuthModal
         isOpen={authModal.isOpen}
         mode={authModal.mode}
@@ -668,20 +909,34 @@ export default function Home() {
         }}
       />
 
-      {/* Settings Modal (with model selector, real history toggle & clear history) */}
+      {/* Modular Tabbed Settings Modal */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+        user={user}
+        onLogout={handleLogout}
         isHistoryEnabled={isHistoryEnabled}
         onToggleHistory={handleToggleHistory}
         onClearHistory={handleClearHistory}
+        chatHistoryForExport={chatHistory}
+        voicePersonality={voicePersonality}
+        onSelectVoicePersonality={handleSelectVoicePersonality}
+        voiceSpeechRate={voiceSpeechRate}
+        onSelectVoiceSpeechRate={handleSelectVoiceSpeechRate}
+        voiceLanguage={voiceLanguage}
+        onSelectVoiceLanguage={handleSelectVoiceLanguage}
+        isMemoryEnabled={isMemoryEnabled}
+        onToggleMemory={handleToggleMemory}
       />
 
-      {/* Real-time Voice Assistant Modal (ChatGPT & Gemini Live style) */}
+      {/* Real-time Voice Assistant Modal with Personality & Speed Controls */}
       <VoiceAssistantModal
         isOpen={isVoiceOpen}
         onClose={() => setIsVoiceOpen(false)}
         model={selectedModel}
+        personality={voicePersonality}
+        speechRate={voiceSpeechRate}
+        language={voiceLanguage}
         onNewMessageTurn={handleVoiceTurnComplete}
         conversationHistory={messages.map((m) => ({
           role: m.role,

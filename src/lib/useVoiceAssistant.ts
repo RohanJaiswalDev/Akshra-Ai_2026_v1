@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type VoiceAssistantStatus = "idle" | "connecting" | "listening" | "thinking" | "speaking" | "muted" | "error";
+export type VoiceAssistantStatus =
+  | "idle"
+  | "connecting"
+  | "listening"
+  | "thinking"
+  | "speaking"
+  | "muted"
+  | "error";
 
 export interface VoiceMessageTurn {
   role: "user" | "assistant";
@@ -11,16 +18,26 @@ export interface VoiceMessageTurn {
 
 interface UseVoiceAssistantOptions {
   model: string;
+  personality?: "natural" | "professional" | "friendly" | "teacher" | "developer";
+  speechRate?: number;
+  language?: string;
   onTurnComplete?: (turn: VoiceMessageTurn) => void;
   initialConversation?: VoiceMessageTurn[];
 }
 
-interface SpeechRecognitionResultItem { transcript: string; }
-interface SpeechRecognitionResult { isFinal: boolean; [index: number]: SpeechRecognitionResultItem; }
-interface SpeechRecognitionEvent {
-  results: { length: number; [index: number]: SpeechRecognitionResult };
+interface SpeechRecognitionResultItem {
+  transcript: string;
 }
-interface SpeechRecognitionErrorEvent { error: string; }
+interface SpeechRecognitionResult {
+  isFinal: boolean;
+  [index: number]: SpeechRecognitionResultItem;
+}
+interface SpeechRecognitionEvent {
+  results: { length: number;[index: number]: SpeechRecognitionResult };
+}
+interface SpeechRecognitionErrorEvent {
+  error: string;
+}
 interface ISpeechRecognition {
   continuous: boolean;
   interimResults: boolean;
@@ -40,11 +57,21 @@ interface SpeechWindow extends Window {
 }
 
 type SpeechQueueItem = { requestId: number; text: string };
-type ResponseState = { id: number; content: string; streamComplete: boolean; cancelled: boolean; committed: boolean };
+type ResponseState = {
+  id: number;
+  content: string;
+  streamComplete: boolean;
+  cancelled: boolean;
+  committed: boolean;
+};
 
 function cleanTextForSpeech(raw: string) {
-  return raw.replace(/```[\s\S]*?```/g, "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/[*_#`~>]/g, "").replace(/\s+/g, " ").trim();
+  return raw
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/[*_#`~>]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function getSpeechRecognition() {
@@ -53,7 +80,14 @@ function getSpeechRecognition() {
   return speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition || null;
 }
 
-export function useVoiceAssistant({ model, onTurnComplete, initialConversation = [] }: UseVoiceAssistantOptions) {
+export function useVoiceAssistant({
+  model,
+  personality = "natural",
+  speechRate = 1.05,
+  language = "en-US",
+  onTurnComplete,
+  initialConversation = [],
+}: UseVoiceAssistantOptions) {
   const [status, setStatus] = useState<VoiceAssistantStatus>("idle");
   const [isMicMuted, setIsMicMuted] = useState(false);
   const [userTranscript, setUserTranscript] = useState("");
@@ -68,6 +102,9 @@ export function useVoiceAssistant({ model, onTurnComplete, initialConversation =
   const sessionActiveRef = useRef(false);
   const latestTranscriptRef = useRef("");
   const modelRef = useRef(model);
+  const personalityRef = useRef(personality);
+  const speechRateRef = useRef(speechRate);
+  const languageRef = useRef(language);
   const onTurnCompleteRef = useRef(onTurnComplete);
   const initialConversationRef = useRef(initialConversation);
   const conversationHistoryRef = useRef<VoiceMessageTurn[]>(initialConversation);
@@ -82,7 +119,13 @@ export function useVoiceAssistant({ model, onTurnComplete, initialConversation =
   const abortControllerRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
   const sessionGenerationRef = useRef(0);
-  const responseRef = useRef<ResponseState>({ id: 0, content: "", streamComplete: false, cancelled: false, committed: false });
+  const responseRef = useRef<ResponseState>({
+    id: 0,
+    content: "",
+    streamComplete: false,
+    cancelled: false,
+    committed: false,
+  });
   const speechQueueRef = useRef<SpeechQueueItem[]>([]);
   const isSpeakingQueueRef = useRef(false);
   const activeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
@@ -102,13 +145,19 @@ export function useVoiceAssistant({ model, onTurnComplete, initialConversation =
 
   const stopRecognition = useCallback(() => {
     if (!recognitionRef.current || !isRecognitionRunningRef.current) return;
-    try { recognitionRef.current.stop(); } catch { /* browser is already stopping */ }
+    try {
+      recognitionRef.current.stop();
+    } catch {
+      /* browser is already stopping */
+    }
     isRecognitionRunningRef.current = false;
   }, []);
 
   const finishAssistantTurn = useCallback((requestId: number) => {
     const response = responseRef.current;
-    if (response.id !== requestId || response.cancelled || response.committed || !response.streamComplete) return;
+    if (response.id !== requestId || response.cancelled || response.committed || !response.streamComplete) {
+      return;
+    }
     response.committed = true;
     const content = response.content.trim();
     if (content) {
@@ -141,12 +190,14 @@ export function useVoiceAssistant({ model, onTurnComplete, initialConversation =
     stopRecognition();
     const utterance = new SpeechSynthesisUtterance(next.text);
     if (selectedVoice) utterance.voice = selectedVoice;
-    utterance.rate = 1.05;
+    utterance.rate = speechRateRef.current || 1.05;
     activeUtteranceRef.current = utterance;
     const advance = () => {
       if (activeUtteranceRef.current === utterance) activeUtteranceRef.current = null;
       isSpeakingQueueRef.current = false;
-      if (responseRef.current.id === next.requestId && !responseRef.current.cancelled) processSpeechQueueRef.current();
+      if (responseRef.current.id === next.requestId && !responseRef.current.cancelled) {
+        processSpeechQueueRef.current();
+      }
     };
     utterance.onend = advance;
     utterance.onerror = advance;
@@ -155,7 +206,14 @@ export function useVoiceAssistant({ model, onTurnComplete, initialConversation =
   }, [finishAssistantTurn, selectedVoice, stopRecognition, updateStatus]);
 
   const restartListening = useCallback(() => {
-    if (!isMountedRef.current || !sessionActiveRef.current || isMicMutedRef.current || statusRef.current === "error") return;
+    if (
+      !isMountedRef.current ||
+      !sessionActiveRef.current ||
+      isMicMutedRef.current ||
+      statusRef.current === "error"
+    ) {
+      return;
+    }
     clearSilenceTimer();
     latestTranscriptRef.current = "";
     setUserTranscript("");
@@ -164,7 +222,9 @@ export function useVoiceAssistant({ model, onTurnComplete, initialConversation =
     try {
       recognitionRef.current.start();
       isRecognitionRunningRef.current = true;
-    } catch { /* the browser is transitioning from onend */ }
+    } catch {
+      /* the browser is transitioning from onend */
+    }
   }, [clearSilenceTimer, updateStatus]);
 
   const cancelCurrentResponse = useCallback(() => {
@@ -175,7 +235,9 @@ export function useVoiceAssistant({ model, onTurnComplete, initialConversation =
     speechQueueRef.current = [];
     isSpeakingQueueRef.current = false;
     activeUtteranceRef.current = null;
-    if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
   }, []);
 
   const enqueueSpeech = useCallback((requestId: number, text: string) => {
@@ -186,95 +248,131 @@ export function useVoiceAssistant({ model, onTurnComplete, initialConversation =
     processSpeechQueueRef.current();
   }, []);
 
-  const sendToAI = useCallback(async (spokenText: string) => {
-    const text = spokenText.trim();
-    if (!text || !sessionActiveRef.current || isMicMutedRef.current) return;
-    clearSilenceTimer();
-    stopRecognition();
-    cancelCurrentResponse();
-    const requestId = requestIdRef.current + 1;
-    requestIdRef.current = requestId;
-    responseRef.current = { id: requestId, content: "", streamComplete: false, cancelled: false, committed: false };
-    const userTurn: VoiceMessageTurn = { role: "user", content: text };
-    conversationHistoryRef.current.push(userTurn);
-    onTurnCompleteRef.current?.(userTurn);
-    setUserTranscript(text);
-    setAssistantTranscript("");
-    updateStatus("thinking");
-
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: conversationHistoryRef.current.slice(-12), model: modelRef.current, mode: "voice" }),
-        signal: controller.signal,
-      });
-      if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(data?.error || "The voice assistant could not reach the AI service.");
-      }
-      if (!response.body) throw new Error("The AI service returned an empty response.");
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let speechBuffer = "";
-      const flushSpeechBuffer = (force = false) => {
-        const boundary = speechBuffer.match(/[.!?;:]+(?:\s|$)|\n+/);
-        const lastSpace = speechBuffer.length > 110 ? speechBuffer.lastIndexOf(" ") : -1;
-        const splitAt = boundary ? boundary.index! + boundary[0].length : lastSpace > 45 ? lastSpace + 1 : force ? speechBuffer.length : -1;
-        if (splitAt <= 0) return;
-        const chunk = speechBuffer.slice(0, splitAt);
-        speechBuffer = speechBuffer.slice(splitAt);
-        enqueueSpeech(requestId, chunk);
+  const sendToAI = useCallback(
+    async (spokenText: string) => {
+      const text = spokenText.trim();
+      if (!text || !sessionActiveRef.current || isMicMutedRef.current) return;
+      clearSilenceTimer();
+      stopRecognition();
+      cancelCurrentResponse();
+      const requestId = requestIdRef.current + 1;
+      requestIdRef.current = requestId;
+      responseRef.current = {
+        id: requestId,
+        content: "",
+        streamComplete: false,
+        cancelled: false,
+        committed: false,
       };
+      const userTurn: VoiceMessageTurn = { role: "user", content: text };
+      conversationHistoryRef.current.push(userTurn);
+      onTurnCompleteRef.current?.(userTurn);
+      setUserTranscript(text);
+      setAssistantTranscript("");
+      updateStatus("thinking");
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (controller.signal.aborted || responseRef.current.id !== requestId) return;
-        const chunk = decoder.decode(value, { stream: true });
-        responseRef.current.content += chunk;
-        speechBuffer += chunk;
-        setAssistantTranscript(responseRef.current.content);
-        flushSpeechBuffer();
-        if (speechBuffer.length > 55 && speechQueueRef.current.length === 0 && !isSpeakingQueueRef.current) flushSpeechBuffer(true);
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      try {
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: conversationHistoryRef.current.slice(-12),
+            model: modelRef.current,
+            mode: "voice",
+            personality: personalityRef.current,
+          }),
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          const data = (await response.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(data?.error || "The voice assistant could not reach the AI service.");
+        }
+        if (!response.body) throw new Error("The AI service returned an empty response.");
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let speechBuffer = "";
+        const flushSpeechBuffer = (force = false) => {
+          const boundary = speechBuffer.match(/[.!?;:]+(?:\s|$)|\n+/);
+          const lastSpace = speechBuffer.length > 110 ? speechBuffer.lastIndexOf(" ") : -1;
+          const splitAt = boundary
+            ? boundary.index! + boundary[0].length
+            : lastSpace > 45
+              ? lastSpace + 1
+              : force
+                ? speechBuffer.length
+                : -1;
+          if (splitAt <= 0) return;
+          const chunk = speechBuffer.slice(0, splitAt);
+          speechBuffer = speechBuffer.slice(splitAt);
+          enqueueSpeech(requestId, chunk);
+        };
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (controller.signal.aborted || responseRef.current.id !== requestId) return;
+          const chunk = decoder.decode(value, { stream: true });
+          responseRef.current.content += chunk;
+          speechBuffer += chunk;
+          setAssistantTranscript(responseRef.current.content);
+          flushSpeechBuffer();
+          if (
+            speechBuffer.length > 55 &&
+            speechQueueRef.current.length === 0 &&
+            !isSpeakingQueueRef.current
+          ) {
+            flushSpeechBuffer(true);
+          }
+        }
+        const finalChunk = decoder.decode();
+        if (finalChunk) {
+          responseRef.current.content += finalChunk;
+          speechBuffer += finalChunk;
+          setAssistantTranscript(responseRef.current.content);
+        }
+        flushSpeechBuffer(true);
+        if (responseRef.current.id !== requestId || controller.signal.aborted) return;
+        responseRef.current.streamComplete = true;
+        abortControllerRef.current = null;
+        if (speechQueueRef.current.length === 0 && !isSpeakingQueueRef.current) {
+          finishAssistantTurn(requestId);
+        }
+      } catch (error: unknown) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (responseRef.current.id !== requestId || !sessionActiveRef.current) return;
+        setErrorMessage(
+          error instanceof Error ? error.message : "Unable to generate a voice response."
+        );
+        updateStatus("error");
       }
-      const finalChunk = decoder.decode();
-      if (finalChunk) {
-        responseRef.current.content += finalChunk;
-        speechBuffer += finalChunk;
-        setAssistantTranscript(responseRef.current.content);
-      }
-      flushSpeechBuffer(true);
-      if (responseRef.current.id !== requestId || controller.signal.aborted) return;
-      responseRef.current.streamComplete = true;
-      abortControllerRef.current = null;
-      if (speechQueueRef.current.length === 0 && !isSpeakingQueueRef.current) finishAssistantTurn(requestId);
-    } catch (error: unknown) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      if (responseRef.current.id !== requestId || !sessionActiveRef.current) return;
-      setErrorMessage(error instanceof Error ? error.message : "Unable to generate a voice response.");
-      updateStatus("error");
-    }
-  }, [cancelCurrentResponse, clearSilenceTimer, enqueueSpeech, finishAssistantTurn, stopRecognition, updateStatus]);
+    },
+    [cancelCurrentResponse, clearSilenceTimer, enqueueSpeech, finishAssistantTurn, stopRecognition, updateStatus]
+  );
 
   const createRecognition = useCallback(() => {
     const SpeechRecognition = getSpeechRecognition();
     if (!SpeechRecognition) {
-      setErrorMessage("Live speech recognition is unavailable in this browser. Use Chrome or Edge over HTTPS.");
+      setErrorMessage(
+        "Live speech recognition is unavailable in this browser. Use Chrome or Edge over HTTPS."
+      );
       updateStatus("error");
       return false;
     }
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = navigator.language || "en-US";
+    recognition.lang = languageRef.current || navigator.language || "en-US";
     recognition.maxAlternatives = 1;
-    recognition.onstart = () => { isRecognitionRunningRef.current = true; };
+    recognition.onstart = () => {
+      isRecognitionRunningRef.current = true;
+    };
     recognition.onresult = (event) => {
-      if (!sessionActiveRef.current || isMicMutedRef.current || statusRef.current !== "listening") return;
+      if (!sessionActiveRef.current || isMicMutedRef.current || statusRef.current !== "listening") {
+        return;
+      }
       let transcript = "";
       let hasFinalResult = false;
       for (let index = 0; index < event.results.length; index += 1) {
@@ -286,21 +384,32 @@ export function useVoiceAssistant({ model, onTurnComplete, initialConversation =
       latestTranscriptRef.current = transcript;
       setUserTranscript(transcript);
       clearSilenceTimer();
-      silenceTimerRef.current = setTimeout(() => sendToAIRef.current(latestTranscriptRef.current), hasFinalResult ? 450 : 800);
+      silenceTimerRef.current = setTimeout(
+        () => sendToAIRef.current(latestTranscriptRef.current),
+        hasFinalResult ? 450 : 800
+      );
     };
     recognition.onerror = (event) => {
       if (event.error === "aborted" || event.error === "no-speech") return;
       if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-        setErrorMessage("Microphone or speech-recognition permission was denied. Allow it in browser settings.");
+        setErrorMessage(
+          "Microphone or speech-recognition permission was denied. Allow it in browser settings."
+        );
         updateStatus("error");
       } else if (event.error === "network") {
-        setErrorMessage("Speech recognition lost its connection. Check your internet connection and try again.");
+        setErrorMessage(
+          "Speech recognition lost its connection. Check your internet connection and try again."
+        );
         updateStatus("error");
       }
     };
     recognition.onend = () => {
       isRecognitionRunningRef.current = false;
-      if (sessionActiveRef.current && statusRef.current === "listening" && !isMicMutedRef.current) {
+      if (
+        sessionActiveRef.current &&
+        statusRef.current === "listening" &&
+        !isMicMutedRef.current
+      ) {
         window.setTimeout(() => restartListeningRef.current(), 100);
       }
     };
@@ -341,7 +450,9 @@ export function useVoiceAssistant({ model, onTurnComplete, initialConversation =
       return;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
       if (sessionGeneration !== sessionGenerationRef.current) {
         stream.getTracks().forEach((track) => track.stop());
         return;
@@ -385,7 +496,11 @@ export function useVoiceAssistant({ model, onTurnComplete, initialConversation =
         audioContextRef.current = null;
       }
       const name = error instanceof DOMException ? error.name : "";
-      setErrorMessage(name === "NotAllowedError" ? "Microphone permission was denied. Allow microphone access and try again." : "Microphone access is required for live voice mode.");
+      setErrorMessage(
+        name === "NotAllowedError"
+          ? "Microphone permission was denied. Allow microphone access and try again."
+          : "Microphone access is required for live voice mode."
+      );
       updateStatus("error");
       sessionActiveRef.current = false;
     }
@@ -395,7 +510,9 @@ export function useVoiceAssistant({ model, onTurnComplete, initialConversation =
     const next = !isMicMutedRef.current;
     isMicMutedRef.current = next;
     setIsMicMuted(next);
-    mediaStreamRef.current?.getAudioTracks().forEach((track) => { track.enabled = !next; });
+    mediaStreamRef.current?.getAudioTracks().forEach((track) => {
+      track.enabled = !next;
+    });
     if (next) {
       clearSilenceTimer();
       stopRecognition();
@@ -413,7 +530,11 @@ export function useVoiceAssistant({ model, onTurnComplete, initialConversation =
 
   const setVoice = useCallback((voice: SpeechSynthesisVoice) => {
     setSelectedVoice(voice);
-    try { localStorage.setItem("akshra_voice_name", voice.name); } catch { /* storage unavailable */ }
+    try {
+      localStorage.setItem("akshra_voice_name", voice.name);
+    } catch {
+      /* storage unavailable */
+    }
   }, []);
 
   useEffect(() => {
@@ -434,13 +555,21 @@ export function useVoiceAssistant({ model, onTurnComplete, initialConversation =
       if (!("speechSynthesis" in window)) return;
       const allVoices = window.speechSynthesis.getVoices();
       if (allVoices.length === 0) return;
-      const englishVoices = allVoices.filter((voice) => voice.lang.toLowerCase().startsWith("en"));
+      const englishVoices = allVoices.filter((voice) =>
+        voice.lang.toLowerCase().startsWith("en")
+      );
       const voices = englishVoices.length > 0 ? englishVoices : allVoices;
       const savedVoiceName = localStorage.getItem("akshra_voice_name");
-      const preferred = voices.find((voice) => voice.name === savedVoiceName)
-        || voices.find((voice) => /natural|neural|google|samantha|jenny|aria|daniel/i.test(voice.name)) || voices[0];
+      const preferred =
+        voices.find((voice) => voice.name === savedVoiceName) ||
+        voices.find((voice) =>
+          /natural|neural|google|samantha|jenny|aria|daniel/i.test(voice.name)
+        ) ||
+        voices[0];
       setAvailableVoices(voices);
-      setSelectedVoice((current) => current && voices.some((voice) => voice.name === current.name) ? current : preferred);
+      setSelectedVoice((current) =>
+        current && voices.some((voice) => voice.name === current.name) ? current : preferred
+      );
     };
     loadVoices();
     window.speechSynthesis?.addEventListener("voiceschanged", loadVoices);
@@ -453,10 +582,15 @@ export function useVoiceAssistant({ model, onTurnComplete, initialConversation =
 
   useEffect(() => {
     modelRef.current = model;
+    personalityRef.current = personality;
+    speechRateRef.current = speechRate;
+    languageRef.current = language;
     onTurnCompleteRef.current = onTurnComplete;
     initialConversationRef.current = initialConversation;
-    if (!sessionActiveRef.current) conversationHistoryRef.current = [...initialConversation];
-  }, [initialConversation, model, onTurnComplete]);
+    if (!sessionActiveRef.current) {
+      conversationHistoryRef.current = [...initialConversation];
+    }
+  }, [initialConversation, language, model, onTurnComplete, personality, speechRate]);
 
   useEffect(() => {
     const renderVisualizer = () => {
@@ -468,14 +602,32 @@ export function useVoiceAssistant({ model, onTurnComplete, initialConversation =
         for (let index = 0; index < data.length; index += 1) data[index] = source[index * step] || 0;
       } else if (statusRef.current === "speaking" || statusRef.current === "thinking") {
         const now = performance.now() * (statusRef.current === "speaking" ? 0.007 : 0.004);
-        for (let index = 0; index < data.length; index += 1) data[index] = Math.max(12, Math.min(180, 70 + Math.sin(now + index * 0.3) * 55));
+        for (let index = 0; index < data.length; index += 1) {
+          data[index] = Math.max(12, Math.min(180, 70 + Math.sin(now + index * 0.3) * 55));
+        }
       } else data.fill(12);
       audioFrequenciesRef.current = data;
       visualizerFrameRef.current = requestAnimationFrame(renderVisualizer);
     };
     visualizerFrameRef.current = requestAnimationFrame(renderVisualizer);
-    return () => { if (visualizerFrameRef.current) cancelAnimationFrame(visualizerFrameRef.current); };
+    return () => {
+      if (visualizerFrameRef.current) cancelAnimationFrame(visualizerFrameRef.current);
+    };
   }, []);
 
-  return { status, isMicMuted, userTranscript, assistantTranscript, errorMessage, audioFrequenciesRef, availableVoices, selectedVoice, setVoice, startSession, stopSession, toggleMute, interrupt };
+  return {
+    status,
+    isMicMuted,
+    userTranscript,
+    assistantTranscript,
+    errorMessage,
+    audioFrequenciesRef,
+    availableVoices,
+    selectedVoice,
+    setVoice,
+    startSession,
+    stopSession,
+    toggleMute,
+    interrupt,
+  };
 }

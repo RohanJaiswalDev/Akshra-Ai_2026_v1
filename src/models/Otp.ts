@@ -2,7 +2,8 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface IOtp extends Document {
   email: string;
-  otp: string;
+  otp: string; // Stored as cryptographic SHA-256 hash
+  attempts: number;
   createdAt: Date;
 }
 
@@ -17,6 +18,10 @@ const OtpSchema = new Schema<IOtp>({
   otp: {
     type: String,
     required: true,
+  },
+  attempts: {
+    type: Number,
+    default: 0,
   },
   createdAt: {
     type: Date,

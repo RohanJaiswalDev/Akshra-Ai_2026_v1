@@ -22,6 +22,9 @@ interface VoiceAssistantModalProps {
   isOpen: boolean;
   onClose: () => void;
   model: string;
+  personality?: "natural" | "professional" | "friendly" | "teacher" | "developer";
+  speechRate?: number;
+  language?: string;
   onNewMessageTurn?: (turn: VoiceMessageTurn) => void;
   conversationHistory?: VoiceMessageTurn[];
 }
@@ -30,6 +33,9 @@ export function VoiceAssistantModal({
   isOpen,
   onClose,
   model,
+  personality = "natural",
+  speechRate = 1.05,
+  language = "en-US",
   onNewMessageTurn,
   conversationHistory = [],
 }: VoiceAssistantModalProps) {
@@ -53,6 +59,9 @@ export function VoiceAssistantModal({
     interrupt,
   } = useVoiceAssistant({
     model,
+    personality,
+    speechRate,
+    language,
     onTurnComplete: onNewMessageTurn,
     initialConversation: conversationHistory,
   });

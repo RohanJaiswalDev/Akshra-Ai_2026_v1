@@ -21,12 +21,12 @@ export async function POST(req: Request) {
       );
     }
 
-    // Verify OTP record
-    const isValid = await checkOtp(email, otp);
+    // Verify OTP record with attempt tracking & cryptographic hash
+    const verification = await checkOtp(email, otp);
 
-    if (!isValid) {
+    if (!verification.success) {
       return NextResponse.json(
-        { success: false, error: "Invalid or expired verification code." },
+        { success: false, error: verification.error || "Invalid or expired verification code." },
         { status: 400 }
       );
     }

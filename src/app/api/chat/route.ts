@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserFromCookie } from "@/lib/auth";
 import { AVAILABLE_MODELS, DEFAULT_MODEL_ID } from "@/lib/models";
+import { getUserMemories } from "@/lib/db-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,6 +24,7 @@ type ChatRequestBody = {
   messages?: unknown;
   model?: unknown;
   mode?: "chat" | "voice";
+  personality?: "natural" | "professional" | "friendly" | "teacher" | "developer";
 };
 
 function jsonError(error: string, status: number, retryable = false) {
@@ -84,7 +86,7 @@ async function getOpenRouterError(response: Response) {
       return payload.error.message;
     }
   } catch {
-    // Some upstream errors are not JSON. Do not expose their raw response body.
+    // Upstream raw error fallback
   }
 
   return fallback;
@@ -95,6 +97,37 @@ function getRetryDelay(response: Response) {
   return Number.isFinite(retryAfter) && retryAfter > 0
     ? Math.min(retryAfter * 1_000, 2_000)
     : 600;
+}
+
+// Phase 3: Automatic Smart Model Routing
+function routeModelIntelligently(userPrompt: string, isVoiceMode: boolean): string {
+  const text = userPrompt.toLowerCase();
+
+  // Coding intent
+  if (
+    /\b(code|function|bug|typescript|python|javascript|react|next\.?js|sql|css|html|api|class|algorithm|component|npm|git|debugging|refactor)\b/i.test(
+      text
+    )
+  ) {
+    return "anthropic/claude-3.5-sonnet";
+  }
+
+  // Complex reasoning & math intent
+  if (
+    /\b(math|calculate|integral|derivative|equation|theorem|solve|proof|logic|probability|puzzle|chain of thought)\b/i.test(
+      text
+    )
+  ) {
+    return "deepseek/deepseek-r1:free";
+  }
+
+  // Voice mode default to ultra-fast Gemini Flash
+  if (isVoiceMode) {
+    return "google/gemini-2.0-flash-exp:free";
+  }
+
+  // General fast default
+  return "deepseek/deepseek-chat";
 }
 
 export async function POST(req: Request) {
@@ -126,18 +159,57 @@ export async function POST(req: Request) {
     }
 
     const configuredDefault = process.env.DEFAULT_OPENROUTER_MODEL?.trim() || DEFAULT_MODEL_ID;
-    const selectedModel = typeof body.model === "string" && body.model.trim()
-      ? body.model.trim()
-      : configuredDefault;
+    const requestedModel =
+      typeof body.model === "string" && body.model.trim() ? body.model.trim() : configuredDefault;
 
-    if (!AVAILABLE_MODEL_IDS.has(selectedModel)) {
-      return jsonError("The selected AI model is unavailable. Choose a model from the list and try again.", 400);
+    if (!AVAILABLE_MODEL_IDS.has(requestedModel)) {
+      return jsonError(
+        "The selected AI model is unavailable. Choose a model from the list and try again.",
+        400
+      );
     }
 
     const isVoiceMode = body.mode === "voice";
-    const systemPrompt = isVoiceMode
-      ? "You are Akshra Ai, a real-time conversational voice assistant. You are speaking directly aloud to the user right now. Respond in a warm, lively, concise, and natural human conversational tone. Answer in 1 to 2 short sentences unless the user explicitly asks for more detail. Never use markdown formatting, asterisks, bullet points, numbered lists, emojis, URLs, or code blocks, as your answer is converted straight to human speech."
+
+    // Auto Model Routing
+    let finalModel = requestedModel;
+    if (requestedModel === "auto") {
+      const latestUserPrompt = messages.filter((m) => m.role === "user").pop()?.content || "";
+      finalModel = routeModelIntelligently(latestUserPrompt, isVoiceMode);
+    }
+
+    // Phase 4: Fetch user memories
+    let memoryGuidance = "";
+    try {
+      const memories = await getUserMemories(session.userId);
+      const active = memories.filter((m) => m.enabled);
+      if (active.length > 0) {
+        memoryGuidance = `\n\nWhat you remember about the user (incorporate naturally into answers):\n• ${active
+          .map((m) => m.content)
+          .join("\n• ")}`;
+      }
+    } catch {
+      // Memory failure must never block chat
+    }
+
+    // Phase 5: Voice Personality tone adjustment
+    const personality = body.personality || "natural";
+    let personalityPrompt = "";
+    if (personality === "professional") {
+      personalityPrompt = " Adopt an articulate, executive, professional demeanor.";
+    } else if (personality === "friendly") {
+      personalityPrompt = " Adopt a warm, cheerful, enthusiastic, and approachable tone.";
+    } else if (personality === "teacher") {
+      personalityPrompt = " Adopt an encouraging, patient, clear pedagogical mentor tone.";
+    } else if (personality === "developer") {
+      personalityPrompt = " Adopt a sharp, concise, pragmatic senior software engineer mindset.";
+    }
+
+    const basePrompt = isVoiceMode
+      ? `You are Akshra Ai, a real-time conversational voice assistant. You are speaking directly aloud to the user right now.${personalityPrompt} Respond in a warm, lively, concise, and natural human conversational tone. Answer in 1 to 2 short sentences unless the user explicitly asks for more detail. Never use markdown formatting, asterisks, bullet points, numbered lists, emojis, URLs, or code blocks, as your answer is converted straight to human speech.`
       : "You are Akshra Ai, an accurate, helpful AI assistant and senior software engineer. Give clear, well-structured answers. Format code in fenced Markdown blocks with the appropriate language identifier.";
+
+    const systemPrompt = `${basePrompt}${memoryGuidance}`;
 
     const formattedMessages = [
       {
@@ -158,7 +230,7 @@ export async function POST(req: Request) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: selectedModel,
+          model: finalModel,
           messages: formattedMessages,
           stream: true,
           ...(isVoiceMode ? { max_tokens: 180, temperature: 0.7 } : {}),
@@ -179,16 +251,8 @@ export async function POST(req: Request) {
       const detail = openRouterResponse
         ? await getOpenRouterError(openRouterResponse)
         : "The AI provider did not return a response.";
-      const retryable = RETRYABLE_STATUS_CODES.has(status);
 
-      console.error("OpenRouter request failed", { status, retryable, detail });
-      return jsonError(
-        retryable
-          ? "The AI provider is temporarily busy. Please retry your message in a moment."
-          : detail,
-        retryable ? 503 : status,
-        retryable
-      );
+      return jsonError(detail, status, RETRYABLE_STATUS_CODES.has(status));
     }
 
     if (!openRouterResponse.body) {
@@ -234,11 +298,16 @@ export async function POST(req: Request) {
             ) {
               const content = parsed.choices[0]?.delta?.content;
               if (typeof content === "string" && content) {
+                // If in voice mode and model is DeepSeek R1, filter thinking tags
+                if (isVoiceMode && content.includes("<think>")) {
+                  // Skip thinking tags in voice mode
+                  return false;
+                }
                 controller.enqueue(encoder.encode(content));
               }
             }
           } catch {
-            // Ignore non-content SSE events from the upstream provider.
+            // Ignore non-content SSE events
           }
 
           return false;
@@ -279,11 +348,7 @@ export async function POST(req: Request) {
       },
     });
   } catch (error: unknown) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      return jsonError("The request was cancelled.", 499);
-    }
-
-    console.error("OpenRouter chat error", error);
-    return jsonError("Unable to reach the AI service. Please try again.", 502, true);
+    console.error("[chat API error]:", error);
+    return jsonError("An unexpected error occurred while communicating with the AI service.", 500);
   }
 }
