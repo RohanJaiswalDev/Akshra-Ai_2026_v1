@@ -1,7 +1,6 @@
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
-@custom-variant read (&:where(.read, .read *));
 
 :root {
   --canvas-bg: #ffffff;
@@ -35,73 +34,6 @@
   --btn-signup-bg: #212121;
   --btn-signup-fg: #ffffff;
   --btn-signup-border: #3c3c3c;
-}
-
-/* Eye Protection / Night Read Mode Light: Soft warm paper, filtered blue light, soothing on the eyes */
-.read {
-  --canvas-bg: #f5eedc;
-  --canvas-fg: #392b1c;
-  --sidebar-bg: #ece1ca;
-  --sidebar-fg: #392b1c;
-  --sidebar-hover: #e0d4bc;
-  --sidebar-border: #d7c9ad;
-  --input-bg: #fffbf2;
-  --input-border: #d2c3a5;
-  --input-shadow: 0 4px 20px -2px rgba(85, 60, 25, 0.08);
-  --btn-login-bg: #463420;
-  --btn-login-fg: #fffbf2;
-  --btn-signup-bg: #fffbf2;
-  --btn-signup-fg: #463420;
-  --btn-signup-border: #c4b08d;
-}
-
-html.read {
-  color-scheme: light;
-}
-
-/* Read mode component overrides to ensure soothing warm tones across all elements */
-.read .bg-white {
-  background-color: #fffcf4 !important;
-}
-
-.read .bg-neutral-50,
-.read .bg-neutral-100 {
-  background-color: #eee1c8 !important;
-}
-
-.read .bg-neutral-200 {
-  background-color: #e2d2b5 !important;
-}
-
-.read .border-neutral-200,
-.read .border-neutral-300 {
-  border-color: #d6c4a4 !important;
-}
-
-.read .text-neutral-900,
-.read .text-neutral-800 {
-  color: #372a1c !important;
-}
-
-.read .text-neutral-700,
-.read .text-neutral-600 {
-  color: #53412f !important;
-}
-
-.read .text-neutral-500,
-.read .text-neutral-400 {
-  color: #7d6852 !important;
-}
-
-.read pre,
-.read code {
-  background-color: #eadaaf !important;
-  color: #372a1c !important;
-}
-
-.read .bg-\[\#f9f9f9\],
-.read .bg-\[\#eeeeee\] {
-  background-color: #ede0c6 !important;
 }
 
 html,

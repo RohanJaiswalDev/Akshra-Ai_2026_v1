@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useTheme } from "next-themes";
-import { Sun, Moon, Eye, Check } from "lucide-react";
+import { Sun, Moon, Check } from "lucide-react";
 
 interface ThemeSelectorProps {
   compact?: boolean;
@@ -24,12 +24,6 @@ export function ThemeSelector({ compact = false }: ThemeSelectorProps) {
   const themes = [
     { id: "light", label: "Light", icon: Sun, title: "Light Mode" },
     { id: "dark", label: "Dark", icon: Moon, title: "Dark Mode" },
-    {
-      id: "read",
-      label: "Read Mode",
-      icon: Eye,
-      title: "Eye Protection / Night Read Mode",
-    },
   ] as const;
 
   if (!mounted) {
