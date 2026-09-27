@@ -10,6 +10,7 @@ import {
   ChevronDown,
   AlertCircle,
   Radio,
+  Square,
 } from "lucide-react";
 import {
   useVoiceAssistant,
@@ -49,6 +50,7 @@ export function VoiceAssistantModal({
     startSession,
     stopSession,
     toggleMute,
+    interrupt,
   } = useVoiceAssistant({
     model,
     onTurnComplete: onNewMessageTurn,
@@ -148,16 +150,16 @@ export function VoiceAssistantModal({
             status === "speaking"
               ? "rgba(147, 51, 234, 0.9)" // Vibrant violet
               : status === "thinking"
-              ? "rgba(234, 179, 8, 0.9)" // Amber
-              : status === "muted"
-              ? "rgba(239, 68, 68, 0.8)" // Red
-              : "rgba(14, 165, 233, 0.9)", // Cyan / Blue for listening
+                ? "rgba(234, 179, 8, 0.9)" // Amber
+                : status === "muted"
+                  ? "rgba(239, 68, 68, 0.8)" // Red
+                  : "rgba(14, 165, 233, 0.9)", // Cyan / Blue for listening
           colorEnd:
             status === "speaking"
               ? "rgba(236, 72, 153, 0.8)"
               : status === "thinking"
-              ? "rgba(249, 115, 22, 0.8)"
-              : "rgba(99, 102, 241, 0.8)",
+                ? "rgba(249, 115, 22, 0.8)"
+                : "rgba(99, 102, 241, 0.8)",
         },
       ];
 
@@ -326,10 +328,29 @@ export function VoiceAssistantModal({
           <canvas
             ref={canvasRef}
             className="w-full h-full object-contain cursor-pointer"
-            onClick={toggleMute}
-            title={isMicMuted ? "Click to unmute" : "Click to mute"}
+            onClick={status === "speaking" ? interrupt : toggleMute}
+            title={
+              status === "speaking"
+                ? "Tap to interrupt"
+                : isMicMuted
+                  ? "Click to unmute"
+                  : "Click to mute"
+            }
           />
         </div>
+
+        {/* Tap to Interrupt Button when AI is speaking */}
+        {status === "speaking" && (
+          <button
+            type="button"
+            onClick={interrupt}
+            className="mt-1 mb-2 px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 text-xs text-neutral-200 flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-sm animate-pulse"
+            title="Interrupt AI and speak"
+          >
+            <Square className="w-2.5 h-2.5 fill-current" />
+            <span>Tap to interrupt</span>
+          </button>
+        )}
 
         {/* Live Subtitles / Transcription Feed */}
         <div className="w-full max-w-xl mx-auto px-4 text-center mt-2 min-h-[70px] flex flex-col items-center justify-center">
@@ -384,11 +405,10 @@ export function VoiceAssistantModal({
                       setVoice(v);
                       setIsVoicePickerOpen(false);
                     }}
-                    className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between transition ${
-                      selectedVoice?.name === v.name
-                        ? "bg-cyan-500/20 text-cyan-300 font-medium"
-                        : "text-neutral-300 hover:bg-white/5"
-                    }`}
+                    className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between transition ${selectedVoice?.name === v.name
+                      ? "bg-cyan-500/20 text-cyan-300 font-medium"
+                      : "text-neutral-300 hover:bg-white/5"
+                      }`}
                   >
                     <span className="truncate">{v.name}</span>
                     <span className="text-[10px] text-neutral-500 shrink-0 ml-1">
@@ -404,11 +424,10 @@ export function VoiceAssistantModal({
           <button
             type="button"
             onClick={toggleMute}
-            className={`w-13 h-13 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shadow-lg active:scale-90 ${
-              isMicMuted
-                ? "bg-red-500 text-white shadow-red-500/30 hover:bg-red-600"
-                : "bg-white/10 text-white border border-white/15 hover:bg-white/20"
-            }`}
+            className={`w-13 h-13 sm:w-14 sm:h-14 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shadow-lg active:scale-90 ${isMicMuted
+              ? "bg-red-500 text-white shadow-red-500/30 hover:bg-red-600"
+              : "bg-white/10 text-white border border-white/15 hover:bg-white/20"
+              }`}
             title={isMicMuted ? "Unmute Microphone" : "Mute Microphone"}
             aria-label="Mute or Unmute"
           >

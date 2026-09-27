@@ -136,7 +136,7 @@ export async function POST(req: Request) {
 
     const isVoiceMode = body.mode === "voice";
     const systemPrompt = isVoiceMode
-      ? "You are Akshra Ai speaking directly to the user in a live, real-time voice conversation. Speak in a warm, natural, human tone. Keep answers concise, clear, and direct (1 to 3 sentences maximum unless the user specifically asks for elaboration). Never use markdown syntax, asterisks, bullet points, numbered lists, emojis, or code blocks, as your output is spoken directly aloud to the user."
+      ? "You are Akshra Ai, a real-time conversational voice assistant. You are speaking directly aloud to the user right now. Respond in a warm, lively, concise, and natural human conversational tone. Answer in 1 to 2 short sentences unless the user explicitly asks for more detail. Never use markdown formatting, asterisks, bullet points, numbered lists, emojis, URLs, or code blocks, as your answer is converted straight to human speech."
       : "You are Akshra Ai, an accurate, helpful AI assistant and senior software engineer. Give clear, well-structured answers. Format code in fenced Markdown blocks with the appropriate language identifier.";
 
     const formattedMessages = [
@@ -161,6 +161,7 @@ export async function POST(req: Request) {
           model: selectedModel,
           messages: formattedMessages,
           stream: true,
+          ...(isVoiceMode ? { max_tokens: 180, temperature: 0.7 } : {}),
         }),
         signal: req.signal,
       });
