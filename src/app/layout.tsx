@@ -78,7 +78,7 @@ export default function RootLayout({
           attribute="class"
           defaultTheme="dark"
           enableSystem={false}
-          themes={["light", "dark", "read"]}
+          themes={["light", "dark"]}
           disableTransitionOnChange={false}
         >
           <PWAProvider>{children}</PWAProvider>
