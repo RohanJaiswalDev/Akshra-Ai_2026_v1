@@ -7,6 +7,7 @@ import {
   LogOut,
   Check,
   Sparkles,
+  Settings,
 } from "lucide-react";
 import { type AuthUser } from "./AuthModals";
 import { AVAILABLE_MODELS } from "@/lib/models";
@@ -21,6 +22,7 @@ interface HeaderProps {
   onLogout: () => void;
   selectedModel: string;
   onSelectModel: (modelId: string) => void;
+  onOpenSettings?: () => void;
 }
 
 export function Header({
@@ -32,6 +34,7 @@ export function Header({
   onLogout,
   selectedModel,
   onSelectModel,
+  onOpenSettings,
 }: HeaderProps) {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
@@ -100,7 +103,7 @@ export function Header({
           <button
             onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
             className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800/80 transition-colors cursor-pointer group"
-            title="Change AI Model"
+            title="AI Models"
           >
             <span className="text-[15px] sm:text-[17px] font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
               Akshra Ai
@@ -109,7 +112,7 @@ export function Header({
               className="inline-flex items-center gap-1 text-xs font-medium text-neutral-600 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded-lg border border-neutral-200/60 dark:border-neutral-700/60 max-w-[130px] sm:max-w-[160px] truncate"
               suppressHydrationWarning
             >
-              {activeModelObj.id === "auto" && <Sparkles className="w-3 h-3 text-cyan-500 shrink-0" />}
+              {activeModelObj.id === "auto"}
               <span className="truncate">{activeModelObj.name}</span>
             </span>
             <ChevronDown
@@ -157,9 +160,7 @@ export function Header({
                           >
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5">
-                                {m.id === "auto" && (
-                                  <Sparkles className="w-3.5 h-3.5 text-cyan-500 shrink-0" />
-                                )}
+                                {m.id === "auto"}
                                 <span className="text-xs sm:text-[13px] font-medium text-neutral-900 dark:text-neutral-100 truncate">
                                   {m.name}
                                 </span>
@@ -215,24 +216,70 @@ export function Header({
                   className="fixed inset-0 z-40"
                   onClick={() => setIsUserMenuOpen(false)}
                 />
-                <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-[#1e1e1e] border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-xl z-50 p-2 animate-in fade-in zoom-in-95 duration-150 text-neutral-900 dark:text-neutral-100">
-                  <div className="px-3 py-2 border-b border-neutral-100 dark:border-neutral-800/80 mb-1">
-                    <p className="text-xs font-semibold truncate">{user.name}</p>
+                <div className="absolute right-0 mt-2 w-56 sm:w-60 bg-white dark:bg-[#1e1e1e] border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-xl z-50 p-2 animate-in fade-in zoom-in-95 duration-150 text-neutral-900 dark:text-neutral-100 divide-y divide-neutral-100 dark:divide-neutral-800/80">
+                  {/* 1. User detail (Name & Email) */}
+                  <div className="px-3 py-2 pb-2.5">
+                    <p className="text-xs font-semibold truncate text-neutral-900 dark:text-neutral-100">
+                      {user.name}
+                    </p>
                     <p className="text-[11px] text-neutral-500 dark:text-neutral-400 truncate mt-0.5">
                       {user.email}
                     </p>
+                    {user.mobileNumber && (
+                      <p className="text-[10px] text-neutral-400 dark:text-neutral-500 truncate mt-0.5 font-mono">
+                        {user.mobileNumber}
+                      </p>
+                    )}
                   </div>
 
-                  <button
-                    onClick={() => {
-                      setIsUserMenuOpen(false);
-                      onLogout();
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 dark:text-red-400 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 transition cursor-pointer font-medium"
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                    <span>Log out</span>
-                  </button>
+                  {/* 2. Models & 3. Settings */}
+                  <div className="py-1.5 space-y-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        setIsModelMenuOpen(true);
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-2 text-xs text-neutral-700 dark:text-neutral-300 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer font-medium group"
+                      title="Switch or view AI model"
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <span>AI Models</span>
+                      </span>
+                      <span className="text-[11px] text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded-lg border border-neutral-200/50 dark:border-neutral-700/50 max-w-[100px] truncate">
+                        {activeModelObj.name}
+                      </span>
+                    </button>
+
+                    {onOpenSettings && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsUserMenuOpen(false);
+                          onOpenSettings();
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-300 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 transition cursor-pointer font-medium"
+                      >
+                        <Settings className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
+                        <span>Settings</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* 4. Logout */}
+                  <div className="pt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        onLogout();
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-red-600 dark:text-red-400 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 transition cursor-pointer font-medium"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Log out</span>
+                    </button>
+                  </div>
                 </div>
               </>
             )}

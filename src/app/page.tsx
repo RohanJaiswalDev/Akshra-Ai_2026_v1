@@ -863,6 +863,7 @@ export default function Home() {
           onLogout={handleLogout}
           selectedModel={selectedModel}
           onSelectModel={handleSelectModel}
+          onOpenSettings={() => setIsSettingsOpen(true)}
         />
 
         {/* Dynamic View: Landing vs Active Chat Messages */}
