@@ -50,7 +50,7 @@
 
 ### 🧠 Multi-Model AI Engine
 - Switch seamlessly between top-tier reasoning, flagship, and lightning-fast models in real-time.
-- Supports **DeepSeek V3**, **DeepSeek R1**, **Claude 3.5 Sonnet**, **GPT-4o**, **GPT-4o Mini**, **Gemini 2.0 Flash**, and **Llama 3.3 70B**.
+- Supports **Auto (Smart Router)**, **DeepSeek V3**, and **GPT-4o Mini**.
 - Streaming responses via Server-Sent Events (SSE) with live token rendering.
 - Cancel / Stop generation mid-stream and regenerate answers with a single click.
 
@@ -88,13 +88,9 @@
 
 | Model | Provider | Badge | Ideal For |
 | :--- | :--- | :--- | :--- |
-| **DeepSeek V3** | DeepSeek | `Fast` (Default) | Ultra-fast programming, math, and daily coding |
-| **DeepSeek R1** | DeepSeek | `Free` / `Reasoning` | Complex logical reasoning & chain-of-thought analysis |
-| **Gemini 2.0 Flash** | Google | `Free` | Low-latency, high-accuracy conversational responses |
-| **Llama 3.3 70B** | Meta | `Free` | Comprehensive open-weights knowledge & instruction following |
-| **GPT-4o Mini** | OpenAI | `Fast` | Lightweight, cost-effective multimodal chat |
-| **GPT-4o** | OpenAI | `Flagship` | High-intelligence reasoning and creative drafting |
-| **Claude 3.5 Sonnet**| Anthropic | `Flagship` | Software engineering, complex debugging, and detailed writing |
+| **Auto (Smart Router)** | Akshra AI | `Smart` (Default) | Automatically selects the optimal model based on prompt intent |
+| **DeepSeek V3** | DeepSeek | `Fast` | Ultra-fast programming, math, logic, and conversational speed |
+| **GPT-4o Mini** | OpenAI | `Fast` | Lightweight, highly capable daily driver for general assistance |
 
 ---
 

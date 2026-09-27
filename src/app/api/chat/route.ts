@@ -103,31 +103,22 @@ function getRetryDelay(response: Response) {
 function routeModelIntelligently(userPrompt: string, isVoiceMode: boolean): string {
   const text = userPrompt.toLowerCase();
 
-  // Coding intent
-  if (
-    /\b(code|function|bug|typescript|python|javascript|react|next\.?js|sql|css|html|api|class|algorithm|component|npm|git|debugging|refactor)\b/i.test(
-      text
-    )
-  ) {
-    return "anthropic/claude-3.5-sonnet";
-  }
-
-  // Complex reasoning & math intent
-  if (
-    /\b(math|calculate|integral|derivative|equation|theorem|solve|proof|logic|probability|puzzle|chain of thought)\b/i.test(
-      text
-    )
-  ) {
-    return "deepseek/deepseek-r1:free";
-  }
-
-  // Voice mode default to ultra-fast Gemini Flash
+  // Voice mode: ultra-fast streaming with DeepSeek V3
   if (isVoiceMode) {
-    return "google/gemini-2.0-flash-exp:free";
+    return "deepseek/deepseek-chat";
   }
 
-  // General fast default
-  return "deepseek/deepseek-chat";
+  // Coding & complex reasoning: DeepSeek V3
+  if (
+    /\b(code|function|bug|typescript|python|javascript|react|next\.?js|sql|css|html|api|class|algorithm|component|npm|git|debugging|refactor|math|calculate|solve|proof|logic)\b/i.test(
+      text
+    )
+  ) {
+    return "deepseek/deepseek-chat";
+  }
+
+  // General fast default: GPT-4o Mini
+  return "openai/gpt-4o-mini";
 }
 
 export async function POST(req: Request) {
