@@ -4,6 +4,7 @@ import { User } from "@/models/User";
 import { Otp } from "@/models/Otp";
 import { Chat, type IChatMessage } from "@/models/Chat";
 import { Memory } from "@/models/Memory";
+import { DEFAULT_MODEL_ID } from "@/lib/models";
 
 interface MemoryUser {
   id: string;
@@ -286,7 +287,7 @@ export async function getUserChats(
         id: c._id.toString(),
         userId: c.userId,
         title: c.title,
-        model: rawC.model || "deepseek/deepseek-chat",
+        model: rawC.model || DEFAULT_MODEL_ID,
         folder: c.folder || "General",
         isPinned: Boolean(c.isPinned),
         isArchived: Boolean(c.isArchived),
@@ -345,7 +346,7 @@ export async function saveUserChat(
         existing.messages = chatData.messages;
         await existing.save();
 
-        const modelVal = ((existing as unknown as { model?: string }).model) || "deepseek/deepseek-chat";
+        const modelVal = ((existing as unknown as { model?: string }).model) || DEFAULT_MODEL_ID;
         return {
           id: existing._id.toString(),
           userId: existing.userId,
@@ -364,14 +365,14 @@ export async function saveUserChat(
     const created = await Chat.create({
       userId,
       title: chatData.title,
-      model: chatData.model || "deepseek/deepseek-chat",
+      model: chatData.model || DEFAULT_MODEL_ID,
       folder: chatData.folder || "General",
       isPinned: chatData.isPinned || false,
       isArchived: chatData.isArchived || false,
       messages: chatData.messages,
     });
 
-    const createdModel = ((created as unknown as { model?: string }).model) || "deepseek/deepseek-chat";
+    const createdModel = ((created as unknown as { model?: string }).model) || DEFAULT_MODEL_ID;
     return {
       id: created._id.toString(),
       userId: created.userId,
@@ -411,7 +412,7 @@ export async function saveUserChat(
       id: chatData.id || `chat_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       userId,
       title: chatData.title,
-      model: chatData.model || "deepseek/deepseek-chat",
+      model: chatData.model || DEFAULT_MODEL_ID,
       folder: chatData.folder || "General",
       isPinned: chatData.isPinned || false,
       isArchived: chatData.isArchived || false,
@@ -447,7 +448,7 @@ export async function updateUserChat(
 
     if (!updated) return null;
 
-    const updatedModel = ((updated as unknown as { model?: string }).model) || "deepseek/deepseek-chat";
+    const updatedModel = ((updated as unknown as { model?: string }).model) || DEFAULT_MODEL_ID;
     const rawUpdated = updated as unknown as { createdAt?: Date; updatedAt?: Date };
     return {
       id: updated._id.toString(),

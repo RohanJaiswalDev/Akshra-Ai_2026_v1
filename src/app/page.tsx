@@ -8,7 +8,7 @@ import { ChatMessages, type Message } from "@/components/ChatMessages";
 import { AuthModal, type AuthUser } from "@/components/AuthModals";
 import { SettingsModal } from "@/components/SettingsModal";
 import { VoiceAssistantModal } from "@/components/VoiceAssistantModal";
-import { DEFAULT_MODEL_ID } from "@/lib/models";
+import { DEFAULT_MODEL_ID, AVAILABLE_MODELS } from "@/lib/models";
 
 export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -27,7 +27,18 @@ export default function Home() {
   });
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
-  const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_MODEL_ID);
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    if (typeof window === "undefined") return DEFAULT_MODEL_ID;
+    try {
+      const saved = localStorage.getItem("akshra_selected_model");
+      if (saved && AVAILABLE_MODELS.some((m) => m.id === saved)) {
+        return saved;
+      }
+    } catch {
+      // ignore
+    }
+    return DEFAULT_MODEL_ID;
+  });
 
   // Reference to abort ongoing chat stream
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -94,10 +105,17 @@ export default function Home() {
           }
         }
 
-        // Load saved model
+        // Load saved model - ensure valid active model, default to "auto"
         const savedModel = localStorage.getItem("akshra_selected_model");
-        if (savedModel) {
+        if (savedModel && AVAILABLE_MODELS.some((m) => m.id === savedModel)) {
           setSelectedModel(savedModel);
+        } else {
+          setSelectedModel(DEFAULT_MODEL_ID);
+          try {
+            localStorage.setItem("akshra_selected_model", DEFAULT_MODEL_ID);
+          } catch {
+            // ignore
+          }
         }
 
         // Load voice personality

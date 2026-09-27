@@ -48,7 +48,7 @@ const ChatSchema = new Schema<IChat>(
     },
     model: {
       type: String,
-      default: "deepseek/deepseek-chat",
+      default: "auto",
     },
     folder: {
       type: String,
