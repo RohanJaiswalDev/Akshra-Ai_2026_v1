@@ -20,6 +20,7 @@ import {
 import { AkshraLogo } from "./icons";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { type AuthUser } from "./AuthModals";
+import { unlockAudioAndSpeech } from "@/lib/useVoiceAssistant";
 
 export interface Message {
   id: string;
@@ -702,9 +703,10 @@ export function ChatMessages({
                         onOpenLogin?.();
                         return;
                       }
+                      unlockAudioAndSpeech();
                       onOpenVoice();
                     }}
-                    className="w-8 h-8 sm:w-9 sm:h-9 min-w-[32px] sm:min-w-[36px] rounded-full flex items-center justify-center shrink-0 mr-1 text-neutral-500 hover:text-cyan-600 dark:text-neutral-400 dark:hover:text-cyan-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition active:scale-95 cursor-pointer"
+                    className="w-8 h-8 sm:w-9 sm:h-9 min-w-[32px] sm:min-w-[36px] rounded-full flex items-center justify-center shrink-0 mr-1 text-neutral-500 hover:text-cyan-600 dark:text-neutral-400 dark:hover:text-cyan-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition active:scale-95 cursor-pointer touch-manipulation"
                     title="Voice Conversation Mode"
                   >
                     <Mic className="w-4 h-4" />

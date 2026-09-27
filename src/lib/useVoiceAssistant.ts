@@ -45,6 +45,7 @@ interface ISpeechRecognition {
   maxAlternatives: number;
   start: () => void;
   stop: () => void;
+  abort?: () => void;
   onstart: (() => void) | null;
   onresult: ((event: SpeechRecognitionEvent) => void) | null;
   onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
@@ -54,6 +55,7 @@ interface SpeechWindow extends Window {
   SpeechRecognition?: new () => ISpeechRecognition;
   webkitSpeechRecognition?: new () => ISpeechRecognition;
   webkitAudioContext?: typeof AudioContext;
+  __activeUtterance?: SpeechSynthesisUtterance | null;
 }
 
 type SpeechQueueItem = { requestId: number; text: string };
@@ -65,11 +67,14 @@ type ResponseState = {
   committed: boolean;
 };
 
+// Clean markdown, code blocks, URLs, and asterisks for smooth human speech
 function cleanTextForSpeech(raw: string) {
   return raw
+    .replace(/<think>[\s\S]*?<\/think>/gi, "") // Filter thinking tags
     .replace(/```[\s\S]*?```/g, "")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/[*_#`~>]/g, "")
+    .replace(/https?:\/\/\S+/gi, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -78,6 +83,49 @@ function getSpeechRecognition() {
   if (typeof window === "undefined") return null;
   const speechWindow = window as SpeechWindow;
   return speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition || null;
+}
+
+export function isMobileOrTabletDevice(): boolean {
+  if (typeof window === "undefined" || typeof navigator === "undefined") return false;
+  return (
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    (navigator.maxTouchPoints && navigator.maxTouchPoints > 1) ||
+    window.innerWidth < 768
+  );
+}
+
+// Unlocks AudioContext and SpeechSynthesis on mobile direct user interaction
+export function unlockAudioAndSpeech() {
+  if (typeof window === "undefined") return;
+
+  try {
+    const speechWindow = window as SpeechWindow;
+    const AudioContextClass = window.AudioContext || speechWindow.webkitAudioContext;
+    if (AudioContextClass) {
+      const ctx = new AudioContextClass();
+      if (ctx.state === "suspended") {
+        void ctx.resume();
+      }
+      const buffer = ctx.createBuffer(1, 1, 22050);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start(0);
+    }
+  } catch {
+    // Ignore
+  }
+
+  try {
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.resume();
+      const silent = new SpeechSynthesisUtterance("");
+      silent.volume = 0;
+      window.speechSynthesis.speak(silent);
+    }
+  } catch {
+    // Ignore
+  }
 }
 
 export function useVoiceAssistant({
@@ -129,6 +177,8 @@ export function useVoiceAssistant({
   const speechQueueRef = useRef<SpeechQueueItem[]>([]);
   const isSpeakingQueueRef = useRef(false);
   const activeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const watchdogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const processSpeechQueueRef = useRef<() => void>(() => undefined);
   const restartListeningRef = useRef<() => void>(() => undefined);
   const sendToAIRef = useRef<(text: string) => void>(() => undefined);
@@ -143,19 +193,31 @@ export function useVoiceAssistant({
     silenceTimerRef.current = null;
   }, []);
 
+  const clearWatchdog = useCallback(() => {
+    if (watchdogTimerRef.current) {
+      clearTimeout(watchdogTimerRef.current);
+      watchdogTimerRef.current = null;
+    }
+  }, []);
+
   const stopRecognition = useCallback(() => {
     if (!recognitionRef.current || !isRecognitionRunningRef.current) return;
     try {
       recognitionRef.current.stop();
     } catch {
-      /* browser is already stopping */
+      /* browser already stopping */
     }
     isRecognitionRunningRef.current = false;
   }, []);
 
   const finishAssistantTurn = useCallback((requestId: number) => {
     const response = responseRef.current;
-    if (response.id !== requestId || response.cancelled || response.committed || !response.streamComplete) {
+    if (
+      response.id !== requestId ||
+      response.cancelled ||
+      response.committed ||
+      !response.streamComplete
+    ) {
       return;
     }
     response.committed = true;
@@ -165,7 +227,10 @@ export function useVoiceAssistant({
       conversationHistoryRef.current.push(turn);
       onTurnCompleteRef.current?.(turn);
     }
-    restartListeningRef.current();
+    // Give mobile speaker a 150ms quiet window so the microphone doesn't catch trailing echo
+    setTimeout(() => {
+      restartListeningRef.current();
+    }, 150);
   }, []);
 
   const processSpeechQueue = useCallback(() => {
@@ -188,29 +253,64 @@ export function useVoiceAssistant({
     isSpeakingQueueRef.current = true;
     updateStatus("speaking");
     stopRecognition();
+
     const utterance = new SpeechSynthesisUtterance(next.text);
     if (selectedVoice) utterance.voice = selectedVoice;
     utterance.rate = speechRateRef.current || 1.05;
     activeUtteranceRef.current = utterance;
+
+    // Anchor on window to protect against mobile engine garbage collection bug
+    (window as unknown as SpeechWindow).__activeUtterance = utterance;
+
     const advance = () => {
+      clearWatchdog();
       if (activeUtteranceRef.current === utterance) activeUtteranceRef.current = null;
+      (window as unknown as SpeechWindow).__activeUtterance = null;
       isSpeakingQueueRef.current = false;
       if (responseRef.current.id === next.requestId && !responseRef.current.cancelled) {
         processSpeechQueueRef.current();
       }
     };
+
     utterance.onend = advance;
     utterance.onerror = advance;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
-  }, [finishAssistantTurn, selectedVoice, stopRecognition, updateStatus]);
+
+    // Mobile watchdog: if mobile browser silently drops onend, advance queue automatically
+    const wordCount = next.text.split(/\s+/).length;
+    const maxSpeechDurationMs = Math.max(2200, wordCount * 550 + 2000);
+    clearWatchdog();
+    watchdogTimerRef.current = setTimeout(() => {
+      if (isSpeakingQueueRef.current && activeUtteranceRef.current === utterance) {
+        console.warn("[VoiceAssistant] Speech utterance timed out on mobile device, advancing queue.");
+        advance();
+      }
+    }, maxSpeechDurationMs);
+
+    // Resume speech synthesis if paused by mobile OS
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+    }
+
+    // Clean playback avoiding Android Chrome cancel bug
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+      setTimeout(() => {
+        if (activeUtteranceRef.current === utterance) {
+          window.speechSynthesis.speak(utterance);
+        }
+      }, 35);
+    } else {
+      window.speechSynthesis.speak(utterance);
+    }
+  }, [clearWatchdog, finishAssistantTurn, selectedVoice, stopRecognition, updateStatus]);
 
   const restartListening = useCallback(() => {
     if (
       !isMountedRef.current ||
       !sessionActiveRef.current ||
       isMicMutedRef.current ||
-      statusRef.current === "error"
+      statusRef.current === "error" ||
+      isSpeakingQueueRef.current
     ) {
       return;
     }
@@ -218,6 +318,7 @@ export function useVoiceAssistant({
     latestTranscriptRef.current = "";
     setUserTranscript("");
     updateStatus("listening");
+
     if (!recognitionRef.current || isRecognitionRunningRef.current) return;
     try {
       recognitionRef.current.start();
@@ -228,6 +329,7 @@ export function useVoiceAssistant({
   }, [clearSilenceTimer, updateStatus]);
 
   const cancelCurrentResponse = useCallback(() => {
+    clearWatchdog();
     requestIdRef.current += 1;
     responseRef.current.cancelled = true;
     abortControllerRef.current?.abort();
@@ -235,10 +337,13 @@ export function useVoiceAssistant({
     speechQueueRef.current = [];
     isSpeakingQueueRef.current = false;
     activeUtteranceRef.current = null;
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
+    if (typeof window !== "undefined") {
+      (window as unknown as SpeechWindow).__activeUtterance = null;
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
     }
-  }, []);
+  }, [clearWatchdog]);
 
   const enqueueSpeech = useCallback((requestId: number, text: string) => {
     const cleaned = cleanTextForSpeech(text);
@@ -255,6 +360,7 @@ export function useVoiceAssistant({
       clearSilenceTimer();
       stopRecognition();
       cancelCurrentResponse();
+
       const requestId = requestIdRef.current + 1;
       requestIdRef.current = requestId;
       responseRef.current = {
@@ -264,6 +370,7 @@ export function useVoiceAssistant({
         cancelled: false,
         committed: false,
       };
+
       const userTurn: VoiceMessageTurn = { role: "user", content: text };
       conversationHistoryRef.current.push(userTurn);
       onTurnCompleteRef.current?.(userTurn);
@@ -285,6 +392,7 @@ export function useVoiceAssistant({
           }),
           signal: controller.signal,
         });
+
         if (!response.ok) {
           const data = (await response.json().catch(() => null)) as { error?: string } | null;
           throw new Error(data?.error || "The voice assistant could not reach the AI service.");
@@ -294,16 +402,18 @@ export function useVoiceAssistant({
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let speechBuffer = "";
+
         const flushSpeechBuffer = (force = false) => {
           const boundary = speechBuffer.match(/[.!?;:]+(?:\s|$)|\n+/);
-          const lastSpace = speechBuffer.length > 110 ? speechBuffer.lastIndexOf(" ") : -1;
+          const lastSpace = speechBuffer.length > 90 ? speechBuffer.lastIndexOf(" ") : -1;
           const splitAt = boundary
             ? boundary.index! + boundary[0].length
-            : lastSpace > 45
+            : lastSpace > 35
               ? lastSpace + 1
               : force
                 ? speechBuffer.length
                 : -1;
+
           if (splitAt <= 0) return;
           const chunk = speechBuffer.slice(0, splitAt);
           speechBuffer = speechBuffer.slice(splitAt);
@@ -317,26 +427,30 @@ export function useVoiceAssistant({
           const chunk = decoder.decode(value, { stream: true });
           responseRef.current.content += chunk;
           speechBuffer += chunk;
-          setAssistantTranscript(responseRef.current.content);
+          setAssistantTranscript(cleanTextForSpeech(responseRef.current.content));
           flushSpeechBuffer();
+
           if (
-            speechBuffer.length > 55 &&
+            speechBuffer.length > 45 &&
             speechQueueRef.current.length === 0 &&
             !isSpeakingQueueRef.current
           ) {
             flushSpeechBuffer(true);
           }
         }
+
         const finalChunk = decoder.decode();
         if (finalChunk) {
           responseRef.current.content += finalChunk;
           speechBuffer += finalChunk;
-          setAssistantTranscript(responseRef.current.content);
+          setAssistantTranscript(cleanTextForSpeech(responseRef.current.content));
         }
         flushSpeechBuffer(true);
+
         if (responseRef.current.id !== requestId || controller.signal.aborted) return;
         responseRef.current.streamComplete = true;
         abortControllerRef.current = null;
+
         if (speechQueueRef.current.length === 0 && !isSpeakingQueueRef.current) {
           finishAssistantTurn(requestId);
         }
@@ -349,26 +463,41 @@ export function useVoiceAssistant({
         updateStatus("error");
       }
     },
-    [cancelCurrentResponse, clearSilenceTimer, enqueueSpeech, finishAssistantTurn, stopRecognition, updateStatus]
+    [
+      cancelCurrentResponse,
+      clearSilenceTimer,
+      enqueueSpeech,
+      finishAssistantTurn,
+      stopRecognition,
+      updateStatus,
+    ]
   );
 
   const createRecognition = useCallback(() => {
     const SpeechRecognition = getSpeechRecognition();
     if (!SpeechRecognition) {
       setErrorMessage(
-        "Live speech recognition is unavailable in this browser. Use Chrome or Edge over HTTPS."
+        "Live speech recognition is unavailable in this browser. Use Chrome, Edge, or Safari over HTTPS."
       );
       updateStatus("error");
       return false;
     }
+
+    const isMobile = isMobileOrTabletDevice();
     const recognition = new SpeechRecognition();
-    recognition.continuous = true;
+
+    // Critical fix for iOS / WebKit and Mobile Android:
+    // Continuous = true causes mobile WebKit to immediately terminate with aborted or no-speech.
+    // Setting continuous = false on mobile ensures reliable recognition turns!
+    recognition.continuous = !isMobile;
     recognition.interimResults = true;
     recognition.lang = languageRef.current || navigator.language || "en-US";
     recognition.maxAlternatives = 1;
+
     recognition.onstart = () => {
       isRecognitionRunningRef.current = true;
     };
+
     recognition.onresult = (event) => {
       if (!sessionActiveRef.current || isMicMutedRef.current || statusRef.current !== "listening") {
         return;
@@ -381,38 +510,60 @@ export function useVoiceAssistant({
       }
       transcript = transcript.trim();
       if (!transcript) return;
+
       latestTranscriptRef.current = transcript;
       setUserTranscript(transcript);
       clearSilenceTimer();
+
+      // Slightly faster response timer on mobile touch devices
+      const silenceDelay = hasFinalResult ? (isMobile ? 350 : 450) : (isMobile ? 700 : 800);
       silenceTimerRef.current = setTimeout(
         () => sendToAIRef.current(latestTranscriptRef.current),
-        hasFinalResult ? 450 : 800
+        silenceDelay
       );
     };
+
     recognition.onerror = (event) => {
-      if (event.error === "aborted" || event.error === "no-speech") return;
+      // no-speech or aborted is very frequent on mobile when the user pauses
+      if (event.error === "aborted" || event.error === "no-speech") {
+        isRecognitionRunningRef.current = false;
+        if (
+          sessionActiveRef.current &&
+          statusRef.current === "listening" &&
+          !isMicMutedRef.current &&
+          !isSpeakingQueueRef.current
+        ) {
+          window.setTimeout(() => restartListeningRef.current(), isMobile ? 180 : 300);
+        }
+        return;
+      }
+
       if (event.error === "not-allowed" || event.error === "service-not-allowed") {
         setErrorMessage(
-          "Microphone or speech-recognition permission was denied. Allow it in browser settings."
+          "Microphone or speech-recognition permission was denied. Allow microphone access in your browser settings."
         );
         updateStatus("error");
       } else if (event.error === "network") {
-        setErrorMessage(
-          "Speech recognition lost its connection. Check your internet connection and try again."
-        );
-        updateStatus("error");
+        // Auto-recover from transient network hiccups on mobile devices
+        isRecognitionRunningRef.current = false;
+        if (sessionActiveRef.current && statusRef.current === "listening") {
+          window.setTimeout(() => restartListeningRef.current(), 800);
+        }
       }
     };
+
     recognition.onend = () => {
       isRecognitionRunningRef.current = false;
       if (
         sessionActiveRef.current &&
         statusRef.current === "listening" &&
-        !isMicMutedRef.current
+        !isMicMutedRef.current &&
+        !isSpeakingQueueRef.current
       ) {
-        window.setTimeout(() => restartListeningRef.current(), 100);
+        window.setTimeout(() => restartListeningRef.current(), isMobile ? 120 : 180);
       }
     };
+
     recognitionRef.current = recognition;
     return true;
   }, [clearSilenceTimer, updateStatus]);
@@ -421,18 +572,21 @@ export function useVoiceAssistant({
     sessionGenerationRef.current += 1;
     sessionActiveRef.current = false;
     clearSilenceTimer();
+    clearWatchdog();
     cancelCurrentResponse();
     stopRecognition();
     recognitionRef.current = null;
+
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
     mediaStreamRef.current = null;
     analyserRef.current = null;
+
     if (audioContextRef.current) {
       void audioContextRef.current.close().catch(() => undefined);
       audioContextRef.current = null;
     }
     updateStatus("idle");
-  }, [cancelCurrentResponse, clearSilenceTimer, stopRecognition, updateStatus]);
+  }, [cancelCurrentResponse, clearSilenceTimer, clearWatchdog, stopRecognition, updateStatus]);
 
   const startSession = useCallback(async () => {
     stopSession();
@@ -444,66 +598,69 @@ export function useVoiceAssistant({
     isMicMutedRef.current = false;
     conversationHistoryRef.current = [...initialConversationRef.current];
     updateStatus("connecting");
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setErrorMessage("This browser cannot access a microphone. Use a modern browser over HTTPS.");
-      updateStatus("error");
+
+    // Gesture unlock helper on mobile
+    unlockAudioAndSpeech();
+
+    const isMobile = isMobileOrTabletDevice();
+
+    // On mobile devices, opening a getUserMedia stream concurrently often locks the hardware mic
+    // exclusively away from webkitSpeechRecognition. We try getUserMedia gracefully; if on mobile or if it fails,
+    // we continue straight to SpeechRecognition so the user's voice always works!
+    let stream: MediaStream | null = null;
+    if (!isMobile && navigator.mediaDevices?.getUserMedia) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        });
+      } catch (err) {
+        console.warn("Hardware mediaStream capture skipped, speech recognition will run directly:", err);
+      }
+    }
+
+    if (sessionGeneration !== sessionGenerationRef.current) {
+      stream?.getTracks().forEach((track) => track.stop());
       return;
     }
+
+    // Initialize Web Audio Context if available
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      });
-      if (sessionGeneration !== sessionGenerationRef.current) {
-        stream.getTracks().forEach((track) => track.stop());
-        return;
-      }
       const speechWindow = window as SpeechWindow;
       const AudioContextClass = window.AudioContext || speechWindow.webkitAudioContext;
-      if (!AudioContextClass) throw new Error("Web Audio is not supported in this browser.");
-      const audioContext = new AudioContextClass();
-      const source = audioContext.createMediaStreamSource(stream);
-      const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 128;
-      analyser.smoothingTimeConstant = 0.8;
-      source.connect(analyser);
-      mediaStreamRef.current = stream;
-      audioContextRef.current = audioContext;
-      analyserRef.current = analyser;
-      sessionActiveRef.current = true;
-      if (audioContext.state === "suspended") await audioContext.resume();
-      if (sessionGeneration !== sessionGenerationRef.current) {
-        stream.getTracks().forEach((track) => track.stop());
-        void audioContext.close().catch(() => undefined);
-        return;
+      if (AudioContextClass) {
+        const audioContext = new AudioContextClass();
+        if (stream) {
+          const source = audioContext.createMediaStreamSource(stream);
+          const analyser = audioContext.createAnalyser();
+          analyser.fftSize = 128;
+          analyser.smoothingTimeConstant = 0.8;
+          source.connect(analyser);
+          analyserRef.current = analyser;
+          mediaStreamRef.current = stream;
+        }
+        audioContextRef.current = audioContext;
+        if (audioContext.state === "suspended") {
+          await audioContext.resume();
+        }
       }
-      if (!createRecognition()) {
-        stream.getTracks().forEach((track) => track.stop());
-        void audioContext.close().catch(() => undefined);
-        mediaStreamRef.current = null;
-        audioContextRef.current = null;
-        analyserRef.current = null;
-        sessionActiveRef.current = false;
-        return;
-      }
-      restartListeningRef.current();
-    } catch (error: unknown) {
-      if (sessionGeneration !== sessionGenerationRef.current) return;
-      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
-      mediaStreamRef.current = null;
-      analyserRef.current = null;
-      if (audioContextRef.current) {
-        void audioContextRef.current.close().catch(() => undefined);
-        audioContextRef.current = null;
-      }
-      const name = error instanceof DOMException ? error.name : "";
-      setErrorMessage(
-        name === "NotAllowedError"
-          ? "Microphone permission was denied. Allow microphone access and try again."
-          : "Microphone access is required for live voice mode."
-      );
-      updateStatus("error");
-      sessionActiveRef.current = false;
+    } catch {
+      // AudioContext fallback
     }
+
+    if (sessionGeneration !== sessionGenerationRef.current) {
+      stream?.getTracks().forEach((track) => track.stop());
+      return;
+    }
+
+    sessionActiveRef.current = true;
+
+    if (!createRecognition()) {
+      stream?.getTracks().forEach((track) => track.stop());
+      sessionActiveRef.current = false;
+      return;
+    }
+
+    restartListeningRef.current();
   }, [createRecognition, stopSession, updateStatus]);
 
   const toggleMute = useCallback(() => {
@@ -513,6 +670,7 @@ export function useVoiceAssistant({
     mediaStreamRef.current?.getAudioTracks().forEach((track) => {
       track.enabled = !next;
     });
+
     if (next) {
       clearSilenceTimer();
       stopRecognition();
@@ -525,6 +683,7 @@ export function useVoiceAssistant({
   const interrupt = useCallback(() => {
     cancelCurrentResponse();
     setAssistantTranscript("");
+    unlockAudioAndSpeech();
     restartListeningRef.current();
   }, [cancelCurrentResponse]);
 
@@ -555,6 +714,7 @@ export function useVoiceAssistant({
       if (!("speechSynthesis" in window)) return;
       const allVoices = window.speechSynthesis.getVoices();
       if (allVoices.length === 0) return;
+
       const englishVoices = allVoices.filter((voice) =>
         voice.lang.toLowerCase().startsWith("en")
       );
@@ -563,14 +723,16 @@ export function useVoiceAssistant({
       const preferred =
         voices.find((voice) => voice.name === savedVoiceName) ||
         voices.find((voice) =>
-          /natural|neural|google|samantha|jenny|aria|daniel/i.test(voice.name)
+          /natural|neural|google|samantha|karen|moira|daniel|rishi|serena/i.test(voice.name)
         ) ||
         voices[0];
+
       setAvailableVoices(voices);
       setSelectedVoice((current) =>
         current && voices.some((voice) => voice.name === current.name) ? current : preferred
       );
     };
+
     loadVoices();
     window.speechSynthesis?.addEventListener("voiceschanged", loadVoices);
     return () => {
@@ -592,6 +754,7 @@ export function useVoiceAssistant({
     }
   }, [initialConversation, language, model, onTurnComplete, personality, speechRate]);
 
+  // Dynamic visualizer frequencies
   useEffect(() => {
     const renderVisualizer = () => {
       const data = new Uint8Array(64);
@@ -605,10 +768,19 @@ export function useVoiceAssistant({
         for (let index = 0; index < data.length; index += 1) {
           data[index] = Math.max(12, Math.min(180, 70 + Math.sin(now + index * 0.3) * 55));
         }
-      } else data.fill(12);
+      } else if (statusRef.current === "listening") {
+        // Natural subtle resting breathe animation when listening on mobile
+        const now = performance.now() * 0.003;
+        for (let index = 0; index < data.length; index += 1) {
+          data[index] = Math.max(12, Math.min(60, 24 + Math.sin(now + index * 0.25) * 16));
+        }
+      } else {
+        data.fill(12);
+      }
       audioFrequenciesRef.current = data;
       visualizerFrameRef.current = requestAnimationFrame(renderVisualizer);
     };
+
     visualizerFrameRef.current = requestAnimationFrame(renderVisualizer);
     return () => {
       if (visualizerFrameRef.current) cancelAnimationFrame(visualizerFrameRef.current);

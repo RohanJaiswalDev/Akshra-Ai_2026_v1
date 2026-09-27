@@ -8,6 +8,7 @@ import { ChatMessages, type Message } from "@/components/ChatMessages";
 import { AuthModal, type AuthUser } from "@/components/AuthModals";
 import { SettingsModal } from "@/components/SettingsModal";
 import { VoiceAssistantModal } from "@/components/VoiceAssistantModal";
+import { unlockAudioAndSpeech } from "@/lib/useVoiceAssistant";
 import { DEFAULT_MODEL_ID, AVAILABLE_MODELS } from "@/lib/models";
 
 export default function Home() {
@@ -826,6 +827,7 @@ export default function Home() {
       setAuthModal({ isOpen: true, mode: "login" });
       return;
     }
+    unlockAudioAndSpeech();
     setIsVoiceOpen(true);
   };
 
