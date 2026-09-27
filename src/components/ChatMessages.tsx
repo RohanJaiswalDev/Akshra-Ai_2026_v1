@@ -10,6 +10,7 @@ import {
   RotateCcw,
   Square,
   Lock,
+  Mic,
 } from "lucide-react";
 import { AkshraLogo } from "./icons";
 import { MarkdownRenderer } from "./MarkdownRenderer";
@@ -35,6 +36,7 @@ interface ChatMessagesProps {
   user?: AuthUser | null;
   onOpenLogin?: () => void;
   onOpenSignup?: () => void;
+  onOpenVoice?: () => void;
 }
 
 // Highly optimized memoized single message row
@@ -159,6 +161,7 @@ export function ChatMessages({
   user,
   onOpenLogin,
   onOpenSignup,
+  onOpenVoice,
 }: ChatMessagesProps) {
   const [input, setInput] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -359,6 +362,24 @@ export function ChatMessages({
                 placeholder="Ask Akshra Ai anything..."
                 className="w-full bg-transparent text-[16px] sm:text-sm text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-400 outline-none resize-none max-h-32 pr-2 py-0.5 font-normal"
               />
+
+              {/* Voice Mode Button */}
+              {onOpenVoice && !isStreaming && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!user) {
+                      onOpenLogin?.();
+                      return;
+                    }
+                    onOpenVoice();
+                  }}
+                  className="w-8 h-8 sm:w-9 sm:h-9 min-w-[32px] sm:min-w-[36px] rounded-full flex items-center justify-center shrink-0 mr-1 text-neutral-500 hover:text-cyan-600 dark:text-neutral-400 dark:hover:text-cyan-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition active:scale-95 cursor-pointer"
+                  title="Voice Conversation Mode"
+                >
+                  <Mic className="w-4 h-4" />
+                </button>
+              )}
 
               {/* Stop vs Send Icon */}
               {isStreaming && onStop ? (

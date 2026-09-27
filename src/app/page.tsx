@@ -7,6 +7,7 @@ import { ChatLanding } from "@/components/ChatLanding";
 import { ChatMessages, type Message } from "@/components/ChatMessages";
 import { AuthModal, type AuthUser } from "@/components/AuthModals";
 import { SettingsModal } from "@/components/SettingsModal";
+import { VoiceAssistantModal } from "@/components/VoiceAssistantModal";
 import { DEFAULT_MODEL_ID } from "@/lib/models";
 
 export default function Home() {
@@ -45,6 +46,7 @@ export default function Home() {
     mode: "login",
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isVoiceOpen, setIsVoiceOpen] = useState(false);
 
   // Keep ref synchronized with state
   useEffect(() => {
@@ -536,6 +538,37 @@ export default function Home() {
     }
   };
 
+  // Trigger real-time Voice Mode modal
+  const handleOpenVoice = () => {
+    if (!user) {
+      setAuthModal({ isOpen: true, mode: "login" });
+      return;
+    }
+    setIsVoiceOpen(true);
+  };
+
+  // Synchronize completed voice conversation turns into active chat & history
+  const handleVoiceTurnComplete = (turn: { role: "user" | "assistant"; content: string }) => {
+    const currentId = activeChatId || `chat-${Date.now()}`;
+    if (!activeChatId) {
+      setActiveChatId(currentId);
+    }
+
+    const newMsg: Message = {
+      id: Date.now().toString(),
+      role: turn.role,
+      content: turn.content,
+      timestamp: "Just now",
+    };
+
+    setMessages((prev) => {
+      const updated = [...prev, newMsg];
+      const titlePrompt = updated.find((m) => m.role === "user")?.content || "Voice Conversation";
+      saveChatToHistory(currentId, titlePrompt, updated);
+      return updated;
+    });
+  };
+
   return (
     <div className="relative h-screen h-[100dvh] flex w-full bg-[var(--canvas-bg)] text-[var(--canvas-fg)] overflow-hidden transition-colors duration-200">
       {/* Sidebar (Collapsed Rail & Expanded Drawer with dynamic History support) */}
@@ -572,7 +605,7 @@ export default function Home() {
           onSelectModel={handleSelectModel}
         />
 
-        {/* Dynamic View: Landing (Hello, Coder.Developer) vs Active Chat Messages */}
+        {/* Dynamic View: Landing vs Active Chat Messages */}
         <main className="flex-1 min-h-0 flex flex-col overflow-hidden relative">
           {messages.length === 0 ? (
             <ChatLanding
@@ -581,6 +614,7 @@ export default function Home() {
               isAuthLoading={isAuthLoading}
               onOpenLogin={() => setAuthModal({ isOpen: true, mode: "login" })}
               onOpenSignup={() => setAuthModal({ isOpen: true, mode: "signup" })}
+              onOpenVoice={handleOpenVoice}
             />
           ) : (
             <ChatMessages
@@ -593,6 +627,7 @@ export default function Home() {
               user={user}
               onOpenLogin={() => setAuthModal({ isOpen: true, mode: "login" })}
               onOpenSignup={() => setAuthModal({ isOpen: true, mode: "signup" })}
+              onOpenVoice={handleOpenVoice}
             />
           )}
         </main>
@@ -630,6 +665,18 @@ export default function Home() {
         onClearHistory={handleClearHistory}
         selectedModel={selectedModel}
         onSelectModel={handleSelectModel}
+      />
+
+      {/* Real-time Voice Assistant Modal (ChatGPT & Gemini Live style) */}
+      <VoiceAssistantModal
+        isOpen={isVoiceOpen}
+        onClose={() => setIsVoiceOpen(false)}
+        model={selectedModel}
+        onNewMessageTurn={handleVoiceTurnComplete}
+        conversationHistory={messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+        }))}
       />
     </div>
   );

@@ -22,6 +22,7 @@ type ChatMessage = {
 type ChatRequestBody = {
   messages?: unknown;
   model?: unknown;
+  mode?: "chat" | "voice";
 };
 
 function jsonError(error: string, status: number, retryable = false) {
@@ -133,11 +134,15 @@ export async function POST(req: Request) {
       return jsonError("The selected AI model is unavailable. Choose a model from the list and try again.", 400);
     }
 
+    const isVoiceMode = body.mode === "voice";
+    const systemPrompt = isVoiceMode
+      ? "You are Akshra Ai speaking directly to the user in a live, real-time voice conversation. Speak in a warm, natural, human tone. Keep answers concise, clear, and direct (1 to 3 sentences maximum unless the user specifically asks for elaboration). Never use markdown syntax, asterisks, bullet points, numbered lists, emojis, or code blocks, as your output is spoken directly aloud to the user."
+      : "You are Akshra Ai, an accurate, helpful AI assistant and senior software engineer. Give clear, well-structured answers. Format code in fenced Markdown blocks with the appropriate language identifier.";
+
     const formattedMessages = [
       {
         role: "system",
-        content:
-          "You are Akshra Ai, an accurate, helpful AI assistant and senior software engineer. Give clear, well-structured answers. Format code in fenced Markdown blocks with the appropriate language identifier.",
+        content: systemPrompt,
       },
       ...messages,
     ];

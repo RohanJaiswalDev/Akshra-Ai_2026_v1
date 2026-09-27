@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { ArrowUp, Code2, Compass, Lightbulb, PenLine, Lock } from "lucide-react";
+import { ArrowUp, Code2, Compass, Lightbulb, PenLine, Lock, Mic } from "lucide-react";
 import { type AuthUser } from "./AuthModals";
 
 interface ChatLandingProps {
@@ -10,6 +10,7 @@ interface ChatLandingProps {
   isAuthLoading?: boolean;
   onOpenLogin: () => void;
   onOpenSignup: () => void;
+  onOpenVoice?: () => void;
 }
 
 export function ChatLanding({
@@ -18,6 +19,7 @@ export function ChatLanding({
   isAuthLoading = false,
   onOpenLogin,
   onOpenSignup,
+  onOpenVoice,
 }: ChatLandingProps) {
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -120,6 +122,24 @@ export function ChatLanding({
               className={`w-full bg-transparent text-[16px] sm:text-base text-neutral-900 dark:text-white placeholder-neutral-400 dark:placeholder-neutral-400 outline-none pr-2 font-normal ${!user ? "cursor-pointer select-none" : ""
                 }`}
             />
+
+            {/* Voice Mode Button */}
+            {onOpenVoice && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!user) {
+                    onOpenLogin();
+                    return;
+                  }
+                  onOpenVoice();
+                }}
+                className="w-8 h-8 sm:w-9 sm:h-9 min-w-[32px] sm:min-w-[36px] rounded-full flex items-center justify-center shrink-0 mr-1 text-neutral-500 hover:text-cyan-600 dark:text-neutral-400 dark:hover:text-cyan-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition active:scale-95 cursor-pointer"
+                title="Start Voice Conversation"
+              >
+                <Mic className="w-4 h-4" />
+              </button>
+            )}
 
             {/* Lock or Send button */}
             {!user ? (
