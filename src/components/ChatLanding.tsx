@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { ArrowUp, Code2, Compass, Lightbulb, PenLine, Lock, Mic } from "lucide-react";
+import { ArrowUp, Code2, Compass, Lightbulb, PenLine, Lock, Mic, Brain, Globe } from "lucide-react";
 import { type AuthUser } from "./AuthModals";
 
 interface ChatLandingProps {
@@ -11,6 +11,10 @@ interface ChatLandingProps {
   onOpenLogin: () => void;
   onOpenSignup: () => void;
   onOpenVoice?: () => void;
+  isThinkingEnabled: boolean;
+  onToggleThinking: () => void;
+  isWebSearchEnabled: boolean;
+  onToggleWebSearch: () => void;
 }
 
 export function ChatLanding({
@@ -19,6 +23,10 @@ export function ChatLanding({
   isAuthLoading = false,
   onOpenLogin,
   onOpenVoice,
+  isThinkingEnabled,
+  onToggleThinking,
+  isWebSearchEnabled,
+  onToggleWebSearch,
 }: ChatLandingProps) {
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -122,6 +130,60 @@ export function ChatLanding({
                 }`}
             />
 
+            {/* Thinking Mode (Mind icon) */}
+            <button
+              type="button"
+              onClick={() => {
+                if (!user) {
+                  onOpenLogin();
+                  return;
+                }
+                onToggleThinking();
+              }}
+              className={`relative w-8 h-8 sm:w-9 sm:h-9 min-w-[32px] sm:min-w-[36px] rounded-full flex items-center justify-center shrink-0 mr-1 transition-all active:scale-95 cursor-pointer ${isThinkingEnabled
+                ? "bg-purple-100 dark:bg-purple-950/70 text-purple-600 dark:text-purple-300 ring-1 ring-purple-400/50 shadow-xs"
+                : "text-neutral-400 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                }`}
+              title={
+                isThinkingEnabled
+                  ? "Thinking Mode: Active (Deep multi-step reasoning)"
+                  : "Thinking Mode: Deep multi-step reasoning"
+              }
+              aria-label="Toggle Thinking Mode"
+            >
+              <Brain className={`w-4 h-4 ${isThinkingEnabled ? "stroke-[2.2]" : ""}`} />
+              {isThinkingEnabled && (
+                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+              )}
+            </button>
+
+            {/* Web Search Mode (Browser/Globe icon) */}
+            <button
+              type="button"
+              onClick={() => {
+                if (!user) {
+                  onOpenLogin();
+                  return;
+                }
+                onToggleWebSearch();
+              }}
+              className={`relative w-8 h-8 sm:w-9 sm:h-9 min-w-[32px] sm:min-w-[36px] rounded-full flex items-center justify-center shrink-0 mr-1 transition-all active:scale-95 cursor-pointer ${isWebSearchEnabled
+                ? "bg-sky-100 dark:bg-sky-950/70 text-sky-600 dark:text-sky-300 ring-1 ring-sky-400/50 shadow-xs"
+                : "text-neutral-400 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                }`}
+              title={
+                isWebSearchEnabled
+                  ? "Web Search Mode: Active (Real-time Google search)"
+                  : "Web Search Mode: Live Google search"
+              }
+              aria-label="Toggle Web Search Mode"
+            >
+              <Globe className={`w-4 h-4 ${isWebSearchEnabled ? "stroke-[2.2]" : ""}`} />
+              {isWebSearchEnabled && (
+                <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
+              )}
+            </button>
+
             {/* Voice Mode Button */}
             {onOpenVoice && (
               <button
@@ -165,6 +227,40 @@ export function ChatLanding({
             )}
           </div>
         </form>
+
+        {/* Active Search & Thinking Status Badges */}
+        {(isThinkingEnabled || isWebSearchEnabled) && (
+          <div className="flex flex-wrap items-center justify-center gap-2 -mt-1 sm:-mt-2 animate-in fade-in duration-200">
+            {isThinkingEnabled && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200/80 dark:border-purple-800/60 shadow-2xs">
+                <Brain className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                <span>Deep Thinking Mode</span>
+                <button
+                  type="button"
+                  onClick={onToggleThinking}
+                  className="hover:text-purple-900 dark:hover:text-purple-100 text-purple-400 ml-0.5 cursor-pointer"
+                  title="Turn off Thinking Mode"
+                >
+                  ×
+                </button>
+              </span>
+            )}
+            {isWebSearchEnabled && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200/80 dark:border-sky-800/60 shadow-2xs">
+                <Globe className="w-3 h-3 text-sky-600 dark:text-sky-400" />
+                <span>Live Web Search</span>
+                <button
+                  type="button"
+                  onClick={onToggleWebSearch}
+                  className="hover:text-sky-900 dark:hover:text-sky-100 text-sky-400 ml-0.5 cursor-pointer"
+                  title="Turn off Web Search"
+                >
+                  ×
+                </button>
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Quick Suggestion Pills with responsive wrap */}
         <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 pt-1 sm:pt-2 max-w-xl px-1">

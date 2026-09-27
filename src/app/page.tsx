@@ -21,6 +21,10 @@ export default function Home() {
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_MODEL_ID);
 
+  // Thinking Mode & Web Search Mode toggles
+  const [isThinkingEnabled, setIsThinkingEnabled] = useState<boolean>(false);
+  const [isWebSearchEnabled, setIsWebSearchEnabled] = useState<boolean>(false);
+
   // Reference to abort ongoing chat stream
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -132,6 +136,17 @@ export default function Home() {
         if (savedMemory !== null) {
           setIsMemoryEnabled(savedMemory !== "false");
         }
+
+        // Load Thinking & Web Search toggles
+        const savedThinking = localStorage.getItem("akshra_thinking_enabled");
+        if (savedThinking !== null) {
+          setIsThinkingEnabled(savedThinking === "true");
+        }
+        const savedWebSearch = localStorage.getItem("akshra_websearch_enabled");
+        if (savedWebSearch !== null) {
+          setIsWebSearchEnabled(savedWebSearch === "true");
+        }
+
         // Load saved user from localStorage
         const savedUser = localStorage.getItem("akshra_auth_user");
         if (savedUser) {
@@ -269,6 +284,32 @@ export default function Home() {
     } catch (e) {
       console.error(e);
     }
+  };
+
+  // Thinking Mode toggle handler
+  const handleToggleThinking = () => {
+    setIsThinkingEnabled((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("akshra_thinking_enabled", next.toString());
+      } catch (e) {
+        console.error(e);
+      }
+      return next;
+    });
+  };
+
+  // Web Search Mode toggle handler
+  const handleToggleWebSearch = () => {
+    setIsWebSearchEnabled((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("akshra_websearch_enabled", next.toString());
+      } catch (e) {
+        console.error(e);
+      }
+      return next;
+    });
   };
 
   // Select chat from sidebar
@@ -603,6 +644,8 @@ export default function Home() {
             content: m.content,
           })),
           model: selectedModel,
+          thinking: isThinkingEnabled,
+          webSearch: isWebSearchEnabled,
         }),
         signal: controller.signal,
       });
@@ -876,6 +919,10 @@ export default function Home() {
               onOpenLogin={() => setAuthModal({ isOpen: true, mode: "login" })}
               onOpenSignup={() => setAuthModal({ isOpen: true, mode: "signup" })}
               onOpenVoice={handleOpenVoice}
+              isThinkingEnabled={isThinkingEnabled}
+              onToggleThinking={handleToggleThinking}
+              isWebSearchEnabled={isWebSearchEnabled}
+              onToggleWebSearch={handleToggleWebSearch}
             />
           ) : (
             <ChatMessages
@@ -889,6 +936,10 @@ export default function Home() {
               onOpenLogin={() => setAuthModal({ isOpen: true, mode: "login" })}
               onOpenSignup={() => setAuthModal({ isOpen: true, mode: "signup" })}
               onOpenVoice={handleOpenVoice}
+              isThinkingEnabled={isThinkingEnabled}
+              onToggleThinking={handleToggleThinking}
+              isWebSearchEnabled={isWebSearchEnabled}
+              onToggleWebSearch={handleToggleWebSearch}
             />
           )}
         </main>

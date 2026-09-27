@@ -25,6 +25,14 @@ export const AVAILABLE_MODELS: AIModel[] = [
     description: "Ultra-fast, state-of-the-art coding, reasoning, and real-time conversation.",
   },
   {
+    id: "deepseek/deepseek-r1",
+    name: "DeepSeek R1",
+    provider: "DeepSeek",
+    category: "Reasoning",
+    badge: "Reasoning",
+    description: "Deep thinking model for complex math, architecture, and multi-step reasoning.",
+  },
+  {
     id: "openai/gpt-4o-mini",
     name: "GPT-4o Mini",
     provider: "OpenAI",

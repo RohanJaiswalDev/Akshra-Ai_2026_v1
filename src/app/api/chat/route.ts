@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { getCurrentUserFromCookie } from "@/lib/auth";
 import { AVAILABLE_MODELS, DEFAULT_MODEL_ID } from "@/lib/models";
 import { getUserMemories } from "@/lib/db-store";
+import { performWebSearch, formatWebSearchPrompt, type SearchResult } from "@/lib/web-search";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const MAX_MESSAGES = 50;
@@ -25,6 +26,8 @@ type ChatRequestBody = {
   model?: unknown;
   mode?: "chat" | "voice";
   personality?: "natural" | "professional" | "friendly" | "teacher" | "developer";
+  thinking?: boolean;
+  webSearch?: boolean;
 };
 
 function jsonError(error: string, status: number, retryable = false) {
@@ -161,15 +164,35 @@ export async function POST(req: Request) {
     }
 
     const isVoiceMode = body.mode === "voice";
+    const isThinkingMode = body.thinking === true && !isVoiceMode;
+    const isWebSearchMode = body.webSearch === true && !isVoiceMode;
 
-    // Auto Model Routing
+    // Auto Model Routing & Thinking Mode selection
     let finalModel = requestedModel;
-    if (requestedModel === "auto") {
+    if (isThinkingMode) {
+      finalModel = "deepseek/deepseek-r1";
+    } else if (requestedModel === "auto") {
       const latestUserPrompt = messages.filter((m) => m.role === "user").pop()?.content || "";
       finalModel = routeModelIntelligently(latestUserPrompt, isVoiceMode);
     }
 
-    // Phase 4: Fetch user memories
+    // Phase 4: Real-time Web Search Execution
+    const latestUserPrompt = messages.filter((m) => m.role === "user").pop()?.content || "";
+    let webSearchResults: SearchResult[] = [];
+    let webSearchPrompt = "";
+
+    if (isWebSearchMode && latestUserPrompt) {
+      try {
+        webSearchResults = await performWebSearch(latestUserPrompt, 5);
+        if (webSearchResults.length > 0) {
+          webSearchPrompt = formatWebSearchPrompt(latestUserPrompt, webSearchResults);
+        }
+      } catch (err) {
+        console.warn("[webSearch error]:", err);
+      }
+    }
+
+    // Phase 5: Fetch user memories
     let memoryGuidance = "";
     try {
       const memories = await getUserMemories(session.userId);
@@ -183,7 +206,7 @@ export async function POST(req: Request) {
       // Memory failure must never block chat
     }
 
-    // Phase 5: Voice Personality tone adjustment
+    // Phase 6: Voice Personality tone adjustment
     const personality = body.personality || "natural";
     let personalityPrompt = "";
     if (personality === "professional") {
@@ -196,11 +219,27 @@ export async function POST(req: Request) {
       personalityPrompt = " Adopt a sharp, concise, pragmatic senior software engineer mindset.";
     }
 
+    // Phase 7: Deep Thinking Mode System Instructions
+    let thinkingPrompt = "";
+    if (isThinkingMode) {
+      thinkingPrompt = `\n\n[DEEP REASONING & ANALYTICAL THINKING MODE]
+You must perform an extensive, rigorous, multi-perspective analytical thought process before delivering your final answer.
+Enclose your raw internal thought process, hypothesis testing, logic steps, calculations, and verification strictly inside <think> and </think> tags.
+In your thinking:
+1. Deconstruct the inquiry thoroughly, clarify implicit assumptions, and explore potential edge cases.
+2. Formulate multiple hypotheses, solutions, or architectural angles.
+3. Test calculations, code logic, or empirical facts rigorously.
+4. Verify deductions and challenge potential flaws or biases.
+5. Synthesize your final conclusions.
+Take the necessary intellectual time and depth — do not truncate or summarize prematurely.
+After closing the </think> tag, output your polished, complete, and definitive response.`;
+    }
+
     const basePrompt = isVoiceMode
       ? `You are Akshra Ai, a real-time conversational voice assistant. You are speaking directly aloud to the user right now.${personalityPrompt} Respond in a warm, lively, concise, and natural human conversational tone. Answer in 1 to 2 short sentences unless the user explicitly asks for more detail. Never use markdown formatting, asterisks, bullet points, numbered lists, emojis, URLs, or code blocks, as your answer is converted straight to human speech.`
       : "You are Akshra Ai, an accurate, helpful AI assistant and senior software engineer. Give clear, well-structured answers. Format code in fenced Markdown blocks with the appropriate language identifier.";
 
-    const systemPrompt = `${basePrompt}${memoryGuidance}`;
+    const systemPrompt = `${basePrompt}${memoryGuidance}${webSearchPrompt}${thinkingPrompt}`;
 
     const formattedMessages = [
       {
@@ -221,7 +260,7 @@ export async function POST(req: Request) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: finalModel,
+          model: attempt === 1 && finalModel === "deepseek/deepseek-r1" ? "deepseek/deepseek-chat" : finalModel,
           messages: formattedMessages,
           stream: true,
           ...(isVoiceMode ? { max_tokens: 180, temperature: 0.7 } : {}),
@@ -258,13 +297,30 @@ export async function POST(req: Request) {
       async start(controller) {
         let buffer = "";
         let closed = false;
+        let isReasoningActive = false;
+        let hasEmittedThinkOpen = false;
 
         const close = () => {
           if (!closed) {
+            if (isReasoningActive) {
+              controller.enqueue(encoder.encode("\n</think>\n\n"));
+              isReasoningActive = false;
+            }
             closed = true;
             controller.close();
           }
         };
+
+        // If Web Search was performed, stream the metadata header first so the client can display verified sources
+        if (webSearchResults.length > 0) {
+          const webSearchPayload = {
+            query: latestUserPrompt,
+            results: webSearchResults,
+          };
+          controller.enqueue(
+            encoder.encode(`<!--web_search:${JSON.stringify(webSearchPayload)}-->\n\n`)
+          );
+        }
 
         const consumeEvent = (event: string) => {
           const data = event
@@ -287,11 +343,28 @@ export async function POST(req: Request) {
               "choices" in parsed &&
               Array.isArray(parsed.choices)
             ) {
-              const content = parsed.choices[0]?.delta?.content;
+              const delta = parsed.choices[0]?.delta;
+              const reasoning = delta?.reasoning || delta?.reasoning_content;
+              const content = delta?.content;
+
+              // Handle reasoning stream from OpenRouter (DeepSeek R1 / reasoning models)
+              if (typeof reasoning === "string" && reasoning) {
+                if (!hasEmittedThinkOpen) {
+                  controller.enqueue(encoder.encode("<think>\n"));
+                  hasEmittedThinkOpen = true;
+                  isReasoningActive = true;
+                }
+                controller.enqueue(encoder.encode(reasoning));
+              }
+
+              // Handle regular content stream
               if (typeof content === "string" && content) {
-                // If in voice mode and model is DeepSeek R1, filter thinking tags
+                if (isReasoningActive) {
+                  controller.enqueue(encoder.encode("\n</think>\n\n"));
+                  isReasoningActive = false;
+                }
+                // If in voice mode, filter thinking tags
                 if (isVoiceMode && content.includes("<think>")) {
-                  // Skip thinking tags in voice mode
                   return false;
                 }
                 controller.enqueue(encoder.encode(content));
