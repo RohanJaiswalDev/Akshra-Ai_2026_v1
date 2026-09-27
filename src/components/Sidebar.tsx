@@ -26,7 +26,6 @@ import {
   Check,
   MoreVertical,
 } from "lucide-react";
-import { ThemeSelector } from "./ThemeSelector";
 import { type AuthUser } from "./AuthModals";
 import type { Message } from "./ChatMessages";
 import { usePWA } from "./PWAProvider";
@@ -322,10 +321,8 @@ export function Sidebar({
           </div>
         )}
 
-        {/* Bottom footer: Theme selector + Settings + User Auth */}
+        {/* Bottom footer: Settings + User Auth */}
         <div className="p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] border-t border-neutral-200/80 dark:border-neutral-800/80 space-y-2 bg-[#f9f9f9] dark:bg-[#171717] shrink-0">
-          <ThemeSelector compact={false} />
-
           <button
             onClick={onOpenSettings}
             className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-neutral-200/60 dark:hover:bg-neutral-800 text-xs font-medium text-neutral-700 dark:text-neutral-300 transition cursor-pointer"
